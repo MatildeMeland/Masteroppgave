@@ -41,7 +41,8 @@ library(tidyverse)
 
 # _______________________________________________________________________#
 ## Data cleaning
-data <- earning_data <- read_csv("Peer_companies/earning_data.csv")
+data <- earning_data <- read_csv("Peer_companies/earning_data.csv") %>% 
+  select(ticker, name, date)
 
 # Reformat the date
 data_dup <- data
@@ -51,6 +52,8 @@ newdate <- strptime(as.character(data_dup$date), "%Y-%m-%d") # change format
 data_dup$date <- format(newdate, "%d.%m.%Y")
 
 # Remove duplicats
+
+data_dup <- unique(data_dup)
 
 # List of tickers visible on Oslo børs webpage
 library(readxl)
@@ -64,4 +67,5 @@ test <- data_dup[data_dup$ticker %in% Ticker_list$ticker,]
 test2 <- merge(test, Ticker_list, by = c("ticker")) %>% 
   select(ticker, name.x, date, industry, industri)
 
-
+# date
+test2$date <- test2$date %>% as.Date(., format = "%d.%m.%Y")
