@@ -51,9 +51,9 @@ length(unique(data_dup$name))
 library(readxl)
 Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx")
 
-length(unique(Ticker_list$TICKER))
+length(unique(Ticker_list$ticker))
 
-setdiff(data_dup$ticker, Ticker_list$TICKER) # show tickers that are only in earnings reports
+setdiff(data_dup$ticker, Ticker_list$ticker) # show tickers that are only in earnings reports
 
 
-
+data_dup[data_dup$ticker %in% Ticker_list$ticker,1:2]
