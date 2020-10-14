@@ -1,10 +1,1 @@
-
-Testing my setup
-A line I wrote on my local computer
-A line I wrote on my local computer
-A line I wrote on my local computer
-A line I wrote on my local computeree
-HEEEI
-ihisdo
-jbj
-
+This project is dedicated to our master thesis written autumn 2020.
