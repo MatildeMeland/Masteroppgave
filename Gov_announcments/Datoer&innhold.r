@@ -18,7 +18,7 @@ raw <- raw %>% str_replace_all(c(" 2020" = "2020",
 df <- as.data.frame(matrix(raw, ncol = 5, byrow = T))
 
 # Keep first 3 colums, only ones with relevant information
-df <- df[,1:3]
+df <- df %>% select("V2","V3","V4")
 
 # Change column names
 colnames(df) <- c("date", "title", "content")
