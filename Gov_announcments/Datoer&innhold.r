@@ -1,5 +1,5 @@
 # Load text file
-raw <- readLines("Gov_announcments/Test.txt")
+raw <- readLines("Gov_announcments/correct.txt", encoding = "UTF-8")
 
 library(tidyverse)
 
