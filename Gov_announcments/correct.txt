@@ -1,3 +1,4 @@
+Les mer:
 13. oktober 2020
 Vaksine mot covid-19 blir gratis(13. oktober 2020)
 Når det kommer en vaksine mot covid-19, vil den bli gratis for befolkningen. Staten vil også dekke kommunenes og sykehusenes kostnader knyttet til vaksinasjon.
@@ -411,6 +412,8 @@ Les pressemeldingen
 15. mai 2020
 Nye råd om ferie- og fritidsreiser(15. mai 2020)
 I dag legger helsemyndighetene frem oppdaterte råd for ferie- og fritidsreiser i Norge. Rådene skal bidra til at det er trygt å reise på ferie i Norge i sommer. I dag har også Utenriksdepartementet forlenget sitt reiseråd og fraråder fortsatt reiser som ikke er strengt nødvendige til alle land. Rådet gjelder frem til 20. august. Innen 15. juni vil det bli vurdert å endre reiserådet til Norden. Innen 20. juli vil det vurderes å endre reiserådet for enkelte andre nærliggende europeiske land.
+
+Les pressemeldingen
 13. mai 2020
 Flere kan reise inn i Norge(13. mai 2020)
 Justis- og beredskapsdepartementet har vedtatt at flere grupper med utlendinger som normalt kan reise inn i Norge, nå kan reise hit igjen. Det innebærer blant annet at flere EØS-borgere kan komme til Norge.
@@ -624,6 +627,8 @@ Les pressemeldingen
 14. april 2020
 Indre grensekontroll videreføres(14. april 2020)
 Den 16. mars gjeninnførte Norge kontroll på indre grense som et tiltak for å begrense spredningen av Covid-19. Det er besluttet at tiltakene skal videreføres i 20 nye dager fra og med 15. april kl. 08.00.
+
+Les pressemeldingen
 9. april 2020
 Flere EØS-borgere kan komme til Norge(9. april 2020)
 Regjeringen har besluttet å endre bortvisningsforskriften, slik at blant annet flere EØS-borgere som skal arbeide her, kan reise inn i Norge.
@@ -662,6 +667,8 @@ Les saken
 3. april 2020
 Koronatiltak for fiskerinæringen(3. april 2020)
 Fiskeri- og sjømatminister Odd Emil Ingebrigtsen legger frem tiltak for fiskerinæringen som følge av koronasituasjonen.
+
+Les pressemeldingen
 3. april 2020
 Utenriksdepartementet opprettholder reiserådet fra 14. mars(3. april 2020)
 Utenriksdepartementet opprettholder reiserådet fra 14. mars som fraråder reiser som ikke er strengt nødvendige til alle land. Årsaken er økningen i utbredelsen av koronaviruset internasjonalt og den uforutsigbare og vanskelige situasjonen for mange reisende. Reiserådet gjelder inntil videre.
@@ -685,6 +692,8 @@ Les pressemeldingen
 2. april 2020
 Rekordstor avtale med Kirkens Nødhjelp for kampen mot fattigdom(2. april 2020)
 Kirkens Nødhjelp undertegnet i dag en rekordstor avtale med Norad. Avtalen innebærer støtte over fem år på totalt 1,75 milliarder kroner til organisasjonens arbeid for bærekraftig utvikling i Afrika sør for Sahara og andre deler av verden.
+
+Les pressemeldingen
 1. april 2020
 Intens innsats for å hjelpe nordmenn på reise hjem til Norge(1. april 2020)
 Norges ambassader rundt om i verden og Utenriksdepartementet jobber på spreng døgnet rundt med å bistå flest mulig nordmenn på reise i utlandet med å komme hjem til Norge.
@@ -778,6 +787,8 @@ Les pressemeldingen
 25. mars 2020
 Koronapandemien: Regjeringen styrker den humanitære innsatsen(25. mars 2020)
 Koronapandemien forverrer en allerede vanskelig situasjon for befolkningen i land og områder som er rammet av humanitære kriser. Ikke minst flyktninger og de som er fordrevet innenfor sine egne land vil være sårbare for smitte på samme tid som de vil ha vedvarende behov for beskyttelse, husly, mat, vann og grunnleggende helsetjenester.
+
+Les pressemeldingen
 24. mars 2020
 Tiltakene mot koronavirus videreføres(24. mars 2020)
 Regjeringen viderefører alle tiltakene som er iverksatt for å bekjempe utbruddet av koronavirus i Norge frem til over påske, til og med 13. april.
@@ -1106,5 +1117,3 @@ Les saken
 30. januar 2020
 Koronaviruset og norske myndigheters arbeid(30. januar 2020)
 Norske myndigheter følger utviklingen av koronaviruset nøye og er godt forberedt dersom viruset skulle komme til Norge.
-
-Les saken
