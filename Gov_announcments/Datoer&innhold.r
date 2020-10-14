@@ -1,6 +1,8 @@
 # Load text file
 raw <- readLines("Gov_announcments/Test.txt")
 
+library(tidyverse)
+
 # Create date by replacing words with numbers
 raw <- raw %>% str_replace_all(c(" 2020" = "2020",
                           
