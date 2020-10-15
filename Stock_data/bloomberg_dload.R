@@ -18,7 +18,10 @@ ticker_date2$date <- rep(ticker_date$date, times = length(ticker_date$input)-sum
 ticker_date2$PX_LAST <- NA         # closing stock price
 ticker_date2$PX_OPEN <- NA         # open stock price
 ticker_date2$PX_VOLUME <- NA       # trading volume
-ticker_date2$VOLATILITY_30D <- NA  # trading volume
+ticker_date2$VOLATILITY_30D <- NA  # 30 day volatility
+ticker_date2$EQY_SH_OUT <- NA      # number of shares
+ticker_date2$CUR_MKT_CAP <- NA      # CUR_MKT_CAP
+
 
 
 # Write an Excel file that can be used
