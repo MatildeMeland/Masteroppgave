@@ -11,3 +11,27 @@ corona_only_news <- subset(news_data, Subjekt == "Nytt koronavirus (Covid-19)")
 # Creates a new subset of all corona articles 
 corona_news <- news_data[grep("Covid-19", news_data$Subjekt), ]
 
+# Making a plot of corona articles over time 
+plot(table(corona_news$`Dato publisert`))
+
+# More advanced plot
+
+
+# Analzing the different subjects
+sub <- sort(table(corona_news$Subjekt))
+
+subjects <- news_data_na$Subjekt
+
+subjects_split <- strsplit(news_data_na$Subjekt, split = ";")
+
+subjects_all <- unlist(subjects_split)
+
+# All unique subjects
+subjects_unique <- unique(subjects_all)
+
+# Most frequent subjects
+table_sub <- as.table(table(subjects_all)) %>% 
+  sort(decreasing = T) %>% 
+  head(100)
+
+
