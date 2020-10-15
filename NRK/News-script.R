@@ -38,6 +38,7 @@ corona_news <- news_data[grep("Covid-19", news_data$subject), ]
 # Making a plot of corona articles over time 
 plot(table(corona_news$date))
 
+
 # More advanced plot
 table_corona <- as.data.frame(table(corona_news$date))
 table_corona$Var1 <- as.Date(table_corona$Var1)
