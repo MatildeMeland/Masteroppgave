@@ -24,6 +24,8 @@ news_data <-
   select(date, title, pageviews, pageviews_mobile, xl, read_time, read_time_total,
          sentences_count, subject, url, word_count)
 
+# FIX - lage dummy variabel med 0/1 for xl artikler
+
 # Remove all articles that doesn't have subject
 news_data_na <- subset(news_data, !is.na(news_data$subject))
 
@@ -53,7 +55,10 @@ ggplot(data = table_corona, aes(x = Var1, y = Freq)) +
   theme(axis.text.x=element_text(angle=60, hjust=1)) 
 
 # Making a plot of reading time of corona articles over time
-ddply(corona_news, .(date), summarise, total = sum(read_time_tot))
+## FIX - gjøre om total tid til timer
+## Fix - lage tabel over dato og sammenlagt tid for alle artikler på en dag
+ggplot(corona_news, aes(x = date, y = read_time_total)) + 
+  geom_point()
 
 
 # Analzing the different subjects
@@ -64,6 +69,7 @@ subjects <- news_data_na$Subjekt
 subjects_split <- strsplit(news_data_na$Subjekt, split = ";")
 
 subjects_all <- unlist(subjects_split)
+
 
 # All unique subjects
 subjects_unique <- unique(subjects_all)
