@@ -34,10 +34,10 @@ corona_only_news <- subset(news_data, subject == "Nytt koronavirus (Covid-19)")
 
 # Creates a new subset of all corona articles 
 corona_news <- news_data[grep("Covid-19", news_data$subject, ignore.case = T), ]
+sum(corona_news$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
 
-# Making a plot of corona articles over time 
+# Making a plot of corona articles over time
 plot(table(corona_news$date))
-
 
 # More advanced plot
 table_corona <- as.data.frame(table(corona_news$date))
@@ -52,8 +52,7 @@ ggplot(data = table_corona, aes(x = Var1, y = Freq)) +
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Number of Articles") +
   scale_x_date(date_labels = "%d %b %Y") +
-  theme_bw() +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) 
+  theme_bw()
 
 # Making a plot of reading time of corona articles over time
 ## FIX - gjøre om total tid til timer
@@ -63,11 +62,11 @@ ggplot(corona_news, aes(x = date, y = read_time_total)) +
 
 
 # Analzing the different subjects
-sub <- sort(table(corona_news$Subjekt))
+sub <- sort(table(corona_news$subject))
 
-subjects <- news_data_na$Subjekt
+subjects <- news_data_na$subject
 
-subjects_split <- strsplit(news_data_na$Subjekt, split = ";")
+subjects_split <- strsplit(news_data_na$subject, split = ";")
 
 subjects_all <- unlist(subjects_split)
 
@@ -81,5 +80,3 @@ table(subjects_all) %>%
   head(100)
 
 table_sub <- as.data.frame(table(subjects_all))
-
-sum(corona_news$pageviews)
