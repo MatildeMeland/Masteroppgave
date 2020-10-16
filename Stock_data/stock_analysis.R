@@ -15,12 +15,12 @@ df <- merge(b, a, by.x = "dates", by.y = "date", all.y = T)
 library(readxl)
 stock_final <- read_excel("Stock_data/stock_final.xlsx")
 
-a <- stock_final[1:5000,2]
-b <- stock_final[1:5000,-2]
+stock_test <- stock_final[grep("AKBMME", stock_final$Security, ignore.case = T), ]
 
-colnames(b)[1] <- ("date")
+a <- stock_test[,1:2]
+b <- stock_test[,-1:-2]
 
-df <- merge(b, a, by.x = "formula", by.y = "date", all.x = T)
+df <- merge(b, a, by.x = "formula", by.y = "date", all.y = T)
 
-df_test <- unique(df)
+df <- df[,c(8,1,2,3,4,5,6,7)]
 
