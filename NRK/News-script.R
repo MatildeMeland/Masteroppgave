@@ -33,7 +33,7 @@ news_data_na <- subset(news_data, !is.na(news_data$subject))
 corona_only_news <- subset(news_data, subject == "Nytt koronavirus (Covid-19)")
 
 # Creates a new subset of all corona articles 
-corona_news <- news_data[grep("Covid-19", news_data$subject), ]
+corona_news <- news_data[grep("Covid-19", news_data$subject, ignore.case = T), ]
 
 # Making a plot of corona articles over time 
 plot(table(corona_news$date))
@@ -82,4 +82,4 @@ table(subjects_all) %>%
 
 table_sub <- as.data.frame(table(subjects_all))
 
-
+sum(corona_news$pageviews)
