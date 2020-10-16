@@ -1,39 +1,39 @@
-
-d <- data.frame(x = c("A", "B", "C", "D", "E", "F"), 
-                y = c("D", "E", "F", NA, NA, NA),
-                z = c(10, 20, 30, NA, NA, NA))
-
-# merge two dataframes by date
-a <- d[1]
-b <- d[-1]
-
-colnames(a) <- ("date")
-colnames(b) <- c("dates", "price")
-
-df <- merge(b, a, by.x = "dates", by.y = "date", all.y = T)
-
-# Testing with a subset of data
+# Libraries
 library(readxl)
-stock_final <- read_excel("Stock_data/stock_final.xlsx")
-
-stock_test1 <- stock_final[grep("AKBMME", stock_final$Security, ignore.case = T), ]
-stock_test2 <- stock_final[grep("ANDFME", stock_final$Security, ignore.case = T), ]
-
-stock_test <- rbind(stock_test1, stock_test2)
-
-a <- stock_test[,1:2]
-b <- stock_test[,-2]
-
-df <- merge(b, a, by.x = c("formula", "Security"), by.y = "date", all.y = T)
-
-df <- merge(b, a, by=1:2, all.y = T)
+library(tidyverse)
+library(zoo)
 
 # All data
-library(readxl)
 stock_final <- read_excel("Stock_data/stock_final.xlsx")
 
-subset1 <- stock_final[,1:2]
-subset2 <- stock_final[,-2]
+# Fix problem with mismatching dates
+df <- merge(stock_final[,1:2], stock_final[,-2], by=1:2, all.y = T) %>% 
+  select(-c(EQY_SH_OUT))
 
-df <- merge(subset2, subset1, by=1:2, all.y = T)
+# Change structure of variables from character to numeric
+df[,3:7] <- sapply(df[,3:7],as.numeric)
+
+# Change NAN to 0 in volume
+df$PX_VOLUME[is.na(df$PX_VOLUME)] <- 0
+
+# Calculate return 
+df$daily_return <- (df$PX_LAST-df$PX_OPEN)/df$PX_OPEN
+
+# Calculate abnormal volume
+
+# Volume sum
+#df$volume_sum <- rollsumr(df$PX_VOLUME, k = 30, fill = NA)
+
+
+# Odeen method
+df$AV_ODEEN <- df$PX_VOLUME/(rollsumr(df$PX_VOLUME, k = 30, fill = NA)/30)
+
+
+
+# DellaVigna formula
+df$AV_DV <- log(((df$PX_VOLUME + lead(df$PX_VOLUME))/2)+1) - log(((rollsumr(df$PX_VOLUME, k = 41, fill = NA)-rollsumr(df$PX_VOLUME, k = 11, fill = NA))/30)+1)
+
+
+
+
 
