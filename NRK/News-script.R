@@ -51,7 +51,7 @@ ggplot(data = table_corona, aes(x = Var1, y = Freq)) +
   labs(title = "Amount of Corona Articles by NRK",
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Number of Articles") +
-  scale_x_date(date_labels = "%d %b %Y") +
+  scale_x_date(date_labels = "%d %b %Y") + # FIX 
   theme_bw()
 
 # Making a plot of reading time of corona articles over time
