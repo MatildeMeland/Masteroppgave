@@ -194,7 +194,6 @@ ggplot(data = table_finance, aes(x = Var1, y = Freq)) +
 # Clicks on finance articles
 ggplot(news_finance, aes(x = date, y = pageviews)) + 
   geom_point() # Remove outliers?
-
 # "Spørsmål og svar om koronautbruddet" - This article has insane hits, think we should remove
 
 news_finance %>% 
