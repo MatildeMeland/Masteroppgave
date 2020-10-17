@@ -1,6 +1,9 @@
 library(readxl)
 library(tidyverse)
 
+
+# Loading and preparing data ----------------------------------------------
+
 news_data <- read_xlsx("NRK/Artikler NRK.no oktober 2019-september 2020.xlsx")
 
 news_data <-
@@ -29,59 +32,131 @@ news_data$xl <- ifelse(news_data$xl == 'XL', 1, 0)
 # Remove all articles that doesn't have subject
 news_data <- subset(news_data, !is.na(news_data$subject))
 
+
+# Format Corona data ------------------------------------------------------
 # Creates a new subset of all articles with only subject is corona
 corona_only_news <- subset(news_data, subject == "Nytt koronavirus (Covid-19)")
 
 # Creates a new subset of all corona articles 
-corona_news <- news_data[grep("Covid-19", news_data$subject, ignore.case = T), ]
-sum(corona_news$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
+news_corona <- news_data[grep("Covid-19", news_data$subject, ignore.case = T), ]
+sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
 
+
+# Amount of articles ------------------------------------------------------
 # Making a plot of corona articles over time
-plot(table(corona_news$date))
+table_corona_articles <- as.data.frame(table(news_corona$date))
+table_corona_articles$Var1 <- as.Date(table_corona_articles$Var1)
 
-# More advanced plot
-table_corona_clicks <- as.data.frame(table(corona_news$date))
-table_corona_clicks$Var1 <- as.Date(table_corona$Var1)
-
-ggplot(table_corona_clicks, aes(x = Var1, y = Freq)) + 
+ggplot(table_corona_articles, aes(x = Var1, y = Freq)) + 
   geom_point()
 
-ggplot(data = table_corona_clicks, aes(x = Var1, y = Freq)) +
+# Histogram
+ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
   geom_bar(stat = "identity", fill = "lightblue") +
   labs(title = "Amount of Corona Articles by NRK",
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Number of Articles") +
-  scale_x_date(date_labels = "%d %b %Y") + # FIX date (only 3 months show up suddenly?)
-  theme_bw()
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
-# Making a plot of reading time of corona articles over time
-# Changing the total time from seconds to hours
-corona_news$read_time_total <- corona_news$read_time_total/360
+# Line plot
+ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
+  geom_line(color = "darkblue") +
+  labs(title = "Amount of Corona Articles by NRK",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Number of Articles") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
-## Fix - lage tabel over dato og sammenlagt tid for alle artikler på en dag
-table_corona_time <- corona_news %>% 
+# Clicks of corona articles -----------------------------------------------
+# Making a plot of clicks of corona articles over time
+ggplot(news_corona, aes(x = date, y = pageviews)) + 
+  geom_point() # Plot of all articles by date (remove outliers?)
+
+# Top read time articles
+news_corona %>% 
+  select(title, pageviews) %>% 
+  sort(pageviews, decreasing = T)
+
+## Formating the data for plotting total hours per day of all articles
+table_corona_time <- news_corona %>% 
   select(date, read_time_total) %>% 
   group_by(date) %>% 
   summarise(time.sum = sum(read_time_total))
 
-ggplot(corona_news, aes(x = date, y = read_time_total)) + 
-  geom_point()
+table_corona_time$date <- as.Date(table_corona_time$date)
+
+ggplot(data = table_corona_time, aes(x = date, y = time.sum)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  labs(title = "Total readtime of Corona Articles by NRK (hours)",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Number of hours read") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 
+# Making a plot of reading time of corona articles over time
+# Changing the total time from seconds to hours
+news_corona$read_time_total <- news_corona$read_time_total/360
+
+ggplot(news_corona, aes(x = date, y = read_time_total)) + 
+  geom_point() # Plot of all articles by date (remove outliers?)
+
+# Top read time articles
+news_corona %>% 
+  select(title, read_time_total) %>% 
+  sort(read_time_total, decreasing = T)
+
+## Formating the data for plotting total hours per day of all articles
+table_corona_time <- news_corona %>% 
+  select(date, read_time_total) %>% 
+  group_by(date) %>% 
+  summarise(time.sum = sum(read_time_total))
+
+table_corona_time$date <- as.Date(table_corona_time$date)
+
+ggplot(data = table_corona_time, aes(x = date, y = time.sum)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  labs(title = "Total readtime of Corona Articles by NRK (hours)",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Number of hours read") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+# Doing the same without XL articles (29 articles of 3660 - don't expect a lot)
+table_corona_time_noxl <- news_corona[news_corona$xl != 1, ]
+
+table_corona_time_noxl <- news_corona %>% 
+  select(date, read_time_total) %>% 
+  group_by(date) %>% 
+  summarise(time.sum = sum(read_time_total))
+
+table_corona_time_noxl$date <- as.Date(table_corona_time_noxl$date)
+
+ggplot(data = table_corona_time_noxl, aes(x = date, y = time.sum)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  labs(title = "Total readtime of Corona Articles by NRK (hours), no XL articles",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Number of hours read") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) # Pretty much no difference - don't think we need to do this
 
 
 # Analzing the different subjects
-sub <- sort(table(corona_news$subject))
+sub <- sort(table(news_corona$subject))
 
-subjects <- news_data_na$subject
+subjects <- news_data$subject
 
-subjects_split <- strsplit(news_data_na$subject, split = ";")
+subjects_split <- strsplit(news_data$subject, split = ";")
 
 subjects_all <- unlist(subjects_split)
 
-
-# All unique subjects
-subjects_unique <- unique(subjects_all)
+subjects_unique <- unique(subjects_all) # All unique subjects
 
 # Most frequent subjects
 table(subjects_all) %>% 
@@ -90,4 +165,22 @@ table(subjects_all) %>%
 
 table_sub <- as.data.frame(table(subjects_all))
 
-# FIXX se på temaer som er relatert til finans, lage tidslinje
+# Piciking finance subjects
+news_finance <- news_data[grep("politikk|trump", news_data$subject, ignore.case = T), ]
+
+# Random sample of articles form this sample (to check that they match)
+news_finance[sample(nrow(news_finance), 3), 1:2]
+
+# Making a plot of corona articles over time
+table_finance <- as.data.frame(table(news_finance$date))
+table_finance$Var1 <- as.Date(table_finance$Var1)
+
+# Histogram
+ggplot(data = table_finance, aes(x = Var1, y = Freq)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  labs(title = "Amount of Corona Articles by NRK",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Number of Articles") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
