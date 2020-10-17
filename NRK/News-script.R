@@ -80,17 +80,13 @@ news_corona %>%
   select(title, pageviews) 
 # %>% sort(pageviews, decreasing = T) Får ikke denne til å funke plutselig
 
-## Formating the data for plotting total hours per day of all articles
-table_corona_clicks <- news_corona %>% 
+## Plotting total hours per day of all articles
+news_corona %>% 
   select(date, pageviews) %>% 
   group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews))
-
-table_corona_clicks$date <- as.Date(table_corona_clicks$date)
-
-table_corona_clicks$clicks.sum <- table_corona_clicks$clicks.sum/(10^6)
-
-ggplot(data = table_corona_clicks, aes(x = date, y = clicks.sum)) +
+  summarise(clicks.sum = sum(pageviews)) %>%
+  
+  ggplot(., aes(x = as.Date(date), y = clicks.sum/(10^6))) +
   geom_bar(stat = "identity", fill = "lightblue") +
   labs(title = "Total pageviews of Corona Articles by NRK (MILL)",
        subtitle = "October 2019 - September 2020",
@@ -171,10 +167,15 @@ table_sub <- as.data.frame(table(subjects_all))
 
 # Formating finance news --------------------------------------------------
 # Piciking finance subjects
-news_finance <- news_data[grep("politikk|trump|økonomi", news_data$subject, ignore.case = T), ]
+test_finance <- news_data[grep("Reiseliv", news_data$subject, ignore.case = T), ]
+test_finance[sample(nrow(test_finance), 20), 1:2]
+
+# Mest relevat er økonomi, Equinor, olje og gass, teknologi og data, 
+# Subsetting with all chosen finance subjects
+news_finance <- news_data[grep("trump|økonomi|teknologi|energi|reiseliv|politikk", news_data$subject, ignore.case = T), ]
 
 # Random sample of articles form this sample (to check that they match)
-news_finance[sample(nrow(news_finance), 3), 1:2]
+news_finance[sample(nrow(news_finance), 20), 1:2]
 
 # Making a plot of corona articles over time
 table_finance <- as.data.frame(table(news_finance$date))
@@ -183,18 +184,31 @@ table_finance$Var1 <- as.Date(table_finance$Var1)
 # Histogram
 ggplot(data = table_finance, aes(x = Var1, y = Freq)) +
   geom_bar(stat = "identity", fill = "lightblue") +
-  labs(title = "Amount of Corona Articles by NRK",
+  labs(title = "Amount of Articles by NRK on Finance Related Topics",
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Number of Articles") +
   scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
-ggplot(., aes(x=date, y=total_volume/10^6, fill=Size_Level)) +
-  geom_area()+
-  geom_area(alpha=0.6 , size=.2, colour="black") +
-  ggtitle("Total trading volume for different market caps") +
-  labs(y = "Million trades") +
-  theme_bw()
+# Clicks on finance articles
+ggplot(news_finance, aes(x = date, y = pageviews)) + 
+  geom_point() # Remove outliers?
 
+# "Spørsmål og svar om koronautbruddet" - This article has insane hits, think we should remove
 
+news_finance %>% 
+  select(date, pageviews) %>% 
+  group_by(date) %>% 
+  summarise(clicks.sum = sum(pageviews)) %>%
+  
+  ggplot(., aes(x = as.Date(date), y = clicks.sum/(10^6))) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  geom_line() +
+  geom_smooth(method = "lm", color = "darkgray") +
+  labs(title = "Total pageviews of Finance Articles by NRK (MILL)",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Million pageviews") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
