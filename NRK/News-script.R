@@ -1,7 +1,6 @@
 library(readxl)
 library(tidyverse)
 
-
 # Loading and preparing data ----------------------------------------------
 
 news_data <- read_xlsx("NRK/Artikler NRK.no oktober 2019-september 2020.xlsx")
@@ -72,32 +71,36 @@ ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
 
 # Clicks of corona articles -----------------------------------------------
 # Making a plot of clicks of corona articles over time
+
 ggplot(news_corona, aes(x = date, y = pageviews)) + 
-  geom_point() # Plot of all articles by date (remove outliers?)
+  geom_point() # Remove outliers?
 
 # Top read time articles
 news_corona %>% 
-  select(title, pageviews) %>% 
-  sort(pageviews, decreasing = T)
+  select(title, pageviews) 
+# %>% sort(pageviews, decreasing = T) Får ikke denne til å funke plutselig
 
 ## Formating the data for plotting total hours per day of all articles
-table_corona_time <- news_corona %>% 
-  select(date, read_time_total) %>% 
+table_corona_clicks <- news_corona %>% 
+  select(date, pageviews) %>% 
   group_by(date) %>% 
-  summarise(time.sum = sum(read_time_total))
+  summarise(clicks.sum = sum(pageviews))
 
-table_corona_time$date <- as.Date(table_corona_time$date)
+table_corona_clicks$date <- as.Date(table_corona_clicks$date)
 
-ggplot(data = table_corona_time, aes(x = date, y = time.sum)) +
+table_corona_clicks$clicks.sum <- table_corona_clicks$clicks.sum/(10^6)
+
+ggplot(data = table_corona_clicks, aes(x = date, y = clicks.sum)) +
   geom_bar(stat = "identity", fill = "lightblue") +
-  labs(title = "Total readtime of Corona Articles by NRK (hours)",
+  labs(title = "Total pageviews of Corona Articles by NRK (MILL)",
        subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Number of hours read") +
+       x = "Date", y = "Million pageviews") +
   scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 
+# Readtime of corona articles ---------------------------------------------
 # Making a plot of reading time of corona articles over time
 # Changing the total time from seconds to hours
 news_corona$read_time_total <- news_corona$read_time_total/360
@@ -147,7 +150,7 @@ ggplot(data = table_corona_time_noxl, aes(x = date, y = time.sum)) +
   theme(axis.text.x = element_text(angle = 60, hjust = 1)) # Pretty much no difference - don't think we need to do this
 
 
-# Analzing the different subjects
+# Analzing the different subjects -----------------------------------------
 sub <- sort(table(news_corona$subject))
 
 subjects <- news_data$subject
@@ -165,8 +168,10 @@ table(subjects_all) %>%
 
 table_sub <- as.data.frame(table(subjects_all))
 
+
+# Formating finance news --------------------------------------------------
 # Piciking finance subjects
-news_finance <- news_data[grep("politikk|trump", news_data$subject, ignore.case = T), ]
+news_finance <- news_data[grep("politikk|trump|økonomi", news_data$subject, ignore.case = T), ]
 
 # Random sample of articles form this sample (to check that they match)
 news_finance[sample(nrow(news_finance), 3), 1:2]
@@ -184,3 +189,12 @@ ggplot(data = table_finance, aes(x = Var1, y = Freq)) +
   scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+ggplot(., aes(x=date, y=total_volume/10^6, fill=Size_Level)) +
+  geom_area()+
+  geom_area(alpha=0.6 , size=.2, colour="black") +
+  ggtitle("Total trading volume for different market caps") +
+  labs(y = "Million trades") +
+  theme_bw()
+
+
