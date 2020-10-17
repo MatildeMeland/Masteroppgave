@@ -38,12 +38,29 @@ df$AV_DV <- log(((df$PX_VOLUME + lead(df$PX_VOLUME))/2)+1) - log(((rollsumr(df$P
 # - weight each stock by market cap?
 # - return of each stock
 test <- df %>% 
-  group_by(Security) %>%
-  summarize(mkt_cap_share = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>%
-  remove_missing()
+  group_by(date) %>%
+  summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>%
+  remove_missing() %>% 
+  mutate(return = (total_mkt_cap - lag(total_mkt_cap)) / lag(total_mkt_cap)) # lag gives the previous value
 
-test$weight <- test$mkt_cap_share/sum(test$mkt_cap_share)
-sum(test$avg_mkt_cap)
+
+# Plot of market over time
+test %>% ggplot(.,aes(x=date, y=total_mkt_cap/3435)) + #divide by 3435 to make it look similar to that of OSBX
+  ylim(550, 900) +
+  geom_line() +
+  ggtitle("Market over time for all stocks listed on OSBX") +
+  labs(y = "Normalized market value") +
+  theme_bw()
+
+# Plot of return over time
+test %>% ggplot(.,aes(x=date, y=return)) +
+  #ylim(550, 900) +
+  geom_line() +
+  ggtitle("Market return over time for all stocks listed on OSBX") +
+  labs(y = "Return") +
+  theme_bw()
+
+
 
 # Graph of trading volume over time
 df %>% 
