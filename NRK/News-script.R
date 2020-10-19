@@ -5,6 +5,7 @@ library(tidyverse)
 
 news_data <- read_xlsx("NRK/Artikler NRK.no oktober 2019-september 2020.xlsx")
 
+# Rename variables/colums
 news_data <-
   news_data %>% 
   rename(
@@ -20,6 +21,7 @@ news_data <-
     url = Url,
     word_count = Wordcount)
 
+#Select variables of interest
 news_data <-
   news_data %>% 
   select(date, title, pageviews, pageviews_mobile, xl, read_time, read_time_total,
@@ -46,8 +48,6 @@ sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M whil
 table_corona_articles <- as.data.frame(table(news_corona$date))
 table_corona_articles$Var1 <- as.Date(table_corona_articles$Var1)
 
-ggplot(table_corona_articles, aes(x = Var1, y = Freq)) + 
-  geom_point()
 
 # Histogram
 ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
@@ -78,7 +78,7 @@ ggplot(news_corona, aes(x = date, y = pageviews)) +
 # Top read time articles
 news_corona %>% 
   select(title, pageviews) 
-# %>% sort(pageviews, decreasing = T) Får ikke denne til å funke plutselig
+# %>% sort(pageviews, decreasing = T) F?r ikke denne til ? funke plutselig
 
 ## Plotting total hours per day of all articles
 news_corona %>% 
@@ -167,13 +167,13 @@ table_sub <- as.data.frame(table(subjects_all))
 
 # Formating finance news --------------------------------------------------
 # Piciking finance subjects
-test_finance <- news_data[grep("Reiseliv", news_data$subject, ignore.case = T), ] # Change subject to investegate what articles are in it
+test_finance <- news_data[grep("politikk", news_data$subject, ignore.case = T), ] # Change subject to investegate what articles are in it
 test_finance[sample(nrow(test_finance), 20), 1:2]
 
-# Mest relevat er økonomi, Equinor, olje og gass, teknologi og data, 
-# Litt mer usikker på temaene politikk, Donald Trump, USA osv.
+# Mest relevat er ?konomi, Equinor, olje og gass, teknologi og data, 
+# Litt mer usikker p? temaene politikk, Donald Trump, USA osv.
 # Subsetting with all chosen finance subjects
-news_finance <- news_data[grep("økonomi|politikk|trump|teknologi|energi|reiseliv|olje|equinor", news_data$subject, ignore.case = T), ]
+news_finance <- news_data[grep("?konomi|politikk|trump|teknologi|energi|reiseliv|olje|equinor", news_data$subject, ignore.case = T), ]
 
 #news_finance <- news_finance[grep("", news_data$full_text, ignore.case = T), ] # When we add full text we can add words that have to be included
 #news_finance <- news_finance[-grep("", news_data$full_text, ignore.case = T), ] # Words we want to exclue - maybe we want to remove articles which mentions corona 5 or more times or something?
@@ -199,7 +199,7 @@ ggplot(data = table_finance, aes(x = Var1, y = Freq)) +
 # Clicks on finance articles
 ggplot(news_finance, aes(x = date, y = pageviews)) + 
   geom_point() # Remove outliers?
-# "Spørsmål og svar om koronautbruddet" - This article has insane hits, think we should remove
+# "Sp?rsm?l og svar om koronautbruddet" - This article has insane hits, think we should remove
 
 # Total number of pageviews by day of finance news
 news_finance %>% 
