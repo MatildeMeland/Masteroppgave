@@ -41,7 +41,7 @@ library(tidyverse)
 
 # _______________________________________________________________________#
 ## Data cleaning
-data <- earning_data <- read_csv("Peer_companies/earning_data.csv") %>% 
+data <- read_csv("Peer_companies/earning_data.csv") %>% 
   select(ticker, name, date)
 
 # Reformat the date
