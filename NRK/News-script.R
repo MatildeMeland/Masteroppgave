@@ -33,12 +33,46 @@ news_data$xl <- ifelse(news_data$xl == 'XL', 1, 0)
 news_data <- subset(news_data, !is.na(news_data$subject))
 
 
+# Plotting all articles ---------------------------------------------------
+# Pageviews
+news_data %>% 
+  select(date, pageviews) %>% 
+  group_by(date) %>% 
+  summarise(clicks.sum = sum(pageviews)) %>%
+  
+  ggplot(., aes(x = as.Date(date), y = clicks.sum/(10^6),  )) +
+  #geom_bar(stat = "identity", fill = "lightblue") +
+  geom_line(color = "subject") +
+  geom_smooth(method = "lm", color = "darkgray") +
+  labs(title = "Total Pageviews of All Articles by NRK (MILL)",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Million pageviews") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+news_data %>% 
+  select(date, read_time_total) %>% 
+  group_by(date) %>% 
+  summarise(time.sum = sum(read_time_total)) %>% 
+  
+  ggplot(., aes(x = as.Date(date), y = time.sum/360)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  geom_smooth(method = "lm", color = "darkgray") +
+  labs(title = "Total readtime of All Articles by NRK (hours)",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Number of hours read") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+
 # Format Corona data ------------------------------------------------------
 # Creates a new subset of all articles with only subject is corona
 corona_only_news <- subset(news_data, subject == "Nytt koronavirus (Covid-19)")
 
 # Creates a new subset of all corona articles 
-news_corona <- news_data[grep("Covid-19", news_data$subject, ignore.case = T), ]
+news_corona <- news_data[grep("Covid-19|korona", news_data$subject, ignore.case = T), ]
 sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
 
 
@@ -49,7 +83,8 @@ table_corona_articles$Var1 <- as.Date(table_corona_articles$Var1)
 
 # Histogram
 ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
-  geom_bar(stat = "identity", fill = "lightblue") +
+  geom_bar(stat = "identity", fill = "lightblue") + # Uncomment to show
+  # geom_line(color = "darkblue") + # Uncomment to show
   labs(title = "Amount of Corona Articles by NRK",
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Number of Articles") +
@@ -57,15 +92,6 @@ ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
-# Line plot
-ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
-  geom_line(color = "darkblue") +
-  labs(title = "Amount of Corona Articles by NRK",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Number of Articles") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 # Clicks of corona articles -----------------------------------------------
 # Making a plot of clicks of corona articles over time
@@ -75,10 +101,10 @@ ggplot(news_corona, aes(x = date, y = pageviews)) +
 
 # Top read time articles
 news_corona %>% 
-  select(title, pageviews) 
-# %>% sort(pageviews, decreasing = T) Får ikke denne til å funke plutselig
+  select(title, as.numeric(pageviews)) %>% 
+  sort(pageviews, decreasing = T) # Får ikke denne til å funke plutselig
 
-## Plotting total hours per day of all articles
+# Plotting total pageviews per day of all articles
 news_corona %>% 
   select(date, pageviews) %>% 
   group_by(date) %>% 
@@ -86,36 +112,94 @@ news_corona %>%
   
   ggplot(., aes(x = as.Date(date), y = clicks.sum/(10^6))) +
   geom_bar(stat = "identity", fill = "lightblue") +
-  labs(title = "Total pageviews of Corona Articles by NRK (MILL)",
+  labs(title = "Total Pageviews of Corona Articles by NRK (MILL)",
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Million pageviews") +
   scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
+# Pageviews of Corona articles compared to ALL articles
+news_plot_table1 <- news_data %>% # Sum of total pageview for all articles by date
+  select(date, pageviews) %>% 
+  group_by(date) %>% 
+  summarise(clicks_sum_all = sum(pageviews)) 
+
+news_plot_table2 <- news_corona %>% # Sum of total pageviews for corona aricles by date
+  select(date, pageviews) %>% 
+  group_by(date) %>% 
+  summarise(clicks_sum_corona = sum(pageviews))
+
+news_plot_table <- merge(news_plot_table1, news_plot_table2, by = "date", all.x = T) # Merge the two datasets
+
+rm(news_plot_table1, news_plot_table2) # Remove elements not needed anymore
+
+ggplot(data = news_plot_table, aes(x = as.Date(date))) +
+  geom_line(aes(y = clicks_sum_all/(10^6)), color = "pink") +
+  geom_line(aes(y = clicks_sum_corona/(10^6)), color = "darkblue") +
+  labs(title = "Total Pageviews of All Articles (pink) and Corona articles (blue) by NRK (MILL)",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Million pageviews") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+# PERCENT of articles that were related to corona on a day
+news_plot_table$percent <- label_percent(news_plot_table$clicks_sum_corona/news_plot_table$clicks_sum_all)
+
+ggplot(data = news_plot_table, aes(x = as.Date(date), y = percent)) +
+  geom_bar(stat = "identity", color = "gray") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values=c('cyan3','tomato'),guide = guide_legend(reverse=TRUE)) +
+  labs(title = "Percentage of Total Pageviews of All Articles Contributed by Corona Articles",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Percentage") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+# Pageviews of Corona articles compared to ALL OTHER articles
+news_not_corona <- news_data[!grepl("Covid-19|korona", news_data$subject, ignore.case = T), ]
+
+news_plot_table1 <- news_not_corona %>% 
+  select(date, pageviews) %>% 
+  group_by(date) %>% 
+  summarise(clicks_sum_all = sum(pageviews)) 
+
+news_plot_table2 <- news_corona %>% 
+  select(date, pageviews) %>% 
+  group_by(date) %>% 
+  summarise(clicks_sum_corona = sum(pageviews))
+
+news_plot_table <- merge(news_plot_table1, news_plot_table2, by = "date", all.x = T)
+
+ggplot(data = news_plot_table, aes(x = as.Date(date))) +
+  geom_line(aes(y = clicks_sum_all/(10^6)), color = "pink") +
+  geom_line(aes(y = clicks_sum_corona/(10^6)), color = "darkblue") +
+  labs(title = "Total Pageviews of All Articles (pink) and All No Corona Articles (blue) by NRK (MILL)",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Million pageviews") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 # Readtime of corona articles ---------------------------------------------
 # Making a plot of reading time of corona articles over time
-# Changing the total time from seconds to hours
-news_corona$read_time_total <- news_corona$read_time_total/360
-
 ggplot(news_corona, aes(x = date, y = read_time_total)) + 
   geom_point() # Plot of all articles by date (remove outliers?)
 
 # Top read time articles
 news_corona %>% 
-  select(title, read_time_total) %>% 
+  select(title, as.numeric(read_time_total)) %>% 
   sort(read_time_total, decreasing = T)
 
 ## Formating the data for plotting total hours per day of all articles
-table_corona_time <- news_corona %>% 
+news_corona %>% 
   select(date, read_time_total) %>% 
   group_by(date) %>% 
-  summarise(time.sum = sum(read_time_total))
-
-table_corona_time$date <- as.Date(table_corona_time$date)
-
-ggplot(data = table_corona_time, aes(x = date, y = time.sum)) +
+  summarise(time.sum = sum(read_time_total)) %>% 
+  
+  ggplot(data = table_corona_time, aes(x = as.Date(date), y = time.sum/360)) +
   geom_bar(stat = "identity", fill = "lightblue") +
   labs(title = "Total readtime of Corona Articles by NRK (hours)",
        subtitle = "October 2019 - September 2020",
@@ -171,7 +255,7 @@ test_finance[sample(nrow(test_finance), 20), 1:2]
 # Mest relevat er økonomi, Equinor, olje og gass, teknologi og data, 
 # Litt mer usikker på temaene politikk, Donald Trump, USA osv.
 # Subsetting with all chosen finance subjects
-news_finance <- news_data[grep("økonomi|trump|teknologi|energi|reiseliv|olje|equinor|fiskeri|næringsliv|", news_data$subject, ignore.case = T), ]
+news_finance <- news_data[grep("økonomi|trump|teknologi|energi|reiseliv|olje|equinor|fiskeri|næringsliv", news_data$subject, ignore.case = T), ]
 
 #news_finance <- news_finance[grep("", news_data$full_text, ignore.case = T), ] # When we add full text we can add words that have to be included
 #news_finance <- news_finance[-grep("", news_data$full_text, ignore.case = T), ] # Words we want to exclue - maybe we want to remove articles which mentions corona 5 or more times or something?
