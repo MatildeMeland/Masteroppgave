@@ -120,24 +120,39 @@ news_corona %>%
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
+
+# Comparing corona articles to all articles -------------------------------
 # Pageviews of Corona articles compared to ALL articles
-news_plot_table1 <- news_data %>% # Sum of total pageview for all articles by date
+news_plot_all <- news_data %>% # Sum of total pageview for all articles by date
   select(date, pageviews) %>% 
   group_by(date) %>% 
   summarise(clicks_sum= sum(pageviews)) %>% 
   mutate(type = "all") 
 
-news_plot_table2 <- news_corona %>% # Sum of total pageviews for corona aricles by date
+news_plot_corona <- news_corona %>% # Sum of total pageviews for corona aricles by date
   select(date, pageviews) %>% 
   group_by(date) %>% 
   summarise(clicks_sum = sum(pageviews)) %>% 
   mutate(type = "corona")
 
-news_plot_table <- rbind(news_plot_table1, news_plot_table2)
+news_plot_ncorona <- news_not_corona %>% # Sum of total pageviews for all not corona aricles by date
+  select(date, pageviews) %>% 
+  group_by(date) %>% 
+  summarise(clicks_sum = sum(pageviews)) %>% 
+  mutate(type = "not corona")
 
-rm(news_plot_table1, news_plot_table2) # Remove elements not needed anymore
+# Compare Corona to ALL atricles and all non corona articles
+news_plot_table <- rbind(news_plot_all, news_plot_corona, news_plot_ncorona)
 
-ggplot(data = news_plot_table, aes(x = as.Date(date), y = clicks_sum, color = type)) +
+# Compare Corona to ALL atricles
+news_plot_table <- rbind(news_plot_all, news_plot_corona)
+
+# Compare Corona to all non corona articles
+news_plot_table <- rbind(news_plot_corona, news_plot_ncorona)
+
+rm(news_plot_all, news_plot_corona, news_plot_ncorona) # Remove elements not needed anymore
+
+ggplot(data = news_plot_table, aes(x = as.Date(date), y = clicks_sum/10^6, color = type)) +
   geom_line() +
   labs(title = "Total Pageviews of All Articles (pink) and Corona articles (blue) by NRK (MILL)",
        subtitle = "October 2019 - September 2020",
@@ -150,23 +165,9 @@ ggplot(data = news_plot_table, aes(x = as.Date(date), y = clicks_sum, color = ty
 ## THIS IS NOT DONE
 
 ggplot(data = news_plot_table, aes(x = as.Date(date), fill = type)) +
-  geom_bar(aes(y = (..count..)/sum(..count..))) +
+  geom_bar(aes(y = (..count..)/sum(..count..))) 
 
 # PERCENT of pageviews that were related to corona on a day
-news_plot_table1 <- news_not_corona %>% # Sum of total pageview for all articles by date
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks_sum = sum(pageviews)) %>% 
-  mutate(type = "other") 
-
-news_plot_table2 <- news_corona %>% # Sum of total pageviews for corona aricles by date
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks_sum = sum(pageviews)) %>% 
-  mutate(type = "corona")
-
-news_plot_table <- rbind(news_plot_table1, news_plot_table2) # Combine tables
-news_plot_table <- news_plot_table[order(type),]
 
 ## FIX FLIP THE CHATEGORIES
 ggplot(news_plot_table, mapping = aes(x = as.Date(date), y = clicks_sum, fill = type)) +
@@ -178,31 +179,6 @@ ggplot(news_plot_table, mapping = aes(x = as.Date(date), y = clicks_sum, fill = 
     scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 60, hjust = 1))
-
-
-# Pageviews of Corona articles compared to ALL OTHER articles
-
-news_plot_table1 <- news_not_corona %>% 
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks_sum_all = sum(pageviews)) 
-
-news_plot_table2 <- news_corona %>% 
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks_sum_corona = sum(pageviews))
-
-news_plot_table <- merge(news_plot_table1, news_plot_table2, by = "date", all.x = T)
-
-ggplot(data = news_plot_table, aes(x = as.Date(date))) +
-  geom_line(aes(y = clicks_sum_all/(10^6)), color = "pink") +
-  geom_line(aes(y = clicks_sum_corona/(10^6)), color = "darkblue") +
-  labs(title = "Total Pageviews of All Articles (pink) and All No Corona Articles (blue) by NRK (MILL)",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Million pageviews") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 # Readtime of corona articles ---------------------------------------------
 # Making a plot of reading time of corona articles over time
