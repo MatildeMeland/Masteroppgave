@@ -2,9 +2,9 @@ library(readxl)
 library(tidyverse)
 
 # Loading and preparing data ----------------------------------------------
-
 news_data <- read_xlsx("NRK/Artikler NRK.no oktober 2019-september 2020.xlsx")
 
+# Rename columns
 news_data <-
   news_data %>% 
   rename(
@@ -20,6 +20,7 @@ news_data <-
     url = Url,
     word_count = Wordcount)
 
+# Select columns we want to work with
 news_data <-
   news_data %>% 
   select(date, title, pageviews, pageviews_mobile, xl, read_time, read_time_total,
@@ -45,9 +46,6 @@ sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M whil
 # Making a plot of corona articles over time
 table_corona_articles <- as.data.frame(table(news_corona$date))
 table_corona_articles$Var1 <- as.Date(table_corona_articles$Var1)
-
-ggplot(table_corona_articles, aes(x = Var1, y = Freq)) + 
-  geom_point()
 
 # Histogram
 ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
