@@ -75,6 +75,7 @@ corona_only_news <- subset(news_data, subject == "Nytt koronavirus (Covid-19)")
 news_corona <- news_data[grep("Covid-19|korona", news_data$subject, ignore.case = T), ]
 sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
 
+news_not_corona <- news_data[!grepl("Covid-19|korona", news_data$subject, ignore.case = T), ]
 
 # Amount of articles ------------------------------------------------------
 # Making a plot of corona articles over time
@@ -123,20 +124,21 @@ news_corona %>%
 news_plot_table1 <- news_data %>% # Sum of total pageview for all articles by date
   select(date, pageviews) %>% 
   group_by(date) %>% 
-  summarise(clicks_sum_all = sum(pageviews)) 
+  summarise(clicks_sum= sum(pageviews)) %>% 
+  mutate(type = "all") 
 
 news_plot_table2 <- news_corona %>% # Sum of total pageviews for corona aricles by date
   select(date, pageviews) %>% 
   group_by(date) %>% 
-  summarise(clicks_sum_corona = sum(pageviews))
+  summarise(clicks_sum = sum(pageviews)) %>% 
+  mutate(type = "corona")
 
-news_plot_table <- merge(news_plot_table1, news_plot_table2, by = "date", all.x = T) # Merge the two datasets
+news_plot_table <- rbind(news_plot_table1, news_plot_table2)
 
 rm(news_plot_table1, news_plot_table2) # Remove elements not needed anymore
 
-ggplot(data = news_plot_table, aes(x = as.Date(date))) +
-  geom_line(aes(y = clicks_sum_all/(10^6)), color = "pink") +
-  geom_line(aes(y = clicks_sum_corona/(10^6)), color = "darkblue") +
+ggplot(data = news_plot_table, aes(x = as.Date(date), y = clicks_sum, color = type)) +
+  geom_line() +
   labs(title = "Total Pageviews of All Articles (pink) and Corona articles (blue) by NRK (MILL)",
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Million pageviews") +
@@ -144,22 +146,41 @@ ggplot(data = news_plot_table, aes(x = as.Date(date))) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
-# PERCENT of articles that were related to corona on a day
-news_plot_table$percent <- label_percent(news_plot_table$clicks_sum_corona/news_plot_table$clicks_sum_all)
+# PERCENT of articles that were related to corona on a day 
+## THIS IS NOT DONE
 
-ggplot(data = news_plot_table, aes(x = as.Date(date), y = percent)) +
-  geom_bar(stat = "identity", color = "gray") +
-  scale_y_continuous(labels = scales::percent) +
-  scale_fill_manual(values=c('cyan3','tomato'),guide = guide_legend(reverse=TRUE)) +
-  labs(title = "Percentage of Total Pageviews of All Articles Contributed by Corona Articles",
+ggplot(data = news_plot_table, aes(x = as.Date(date), fill = type)) +
+  geom_bar(aes(y = (..count..)/sum(..count..))) +
+
+# PERCENT of pageviews that were related to corona on a day
+news_plot_table1 <- news_not_corona %>% # Sum of total pageview for all articles by date
+  select(date, pageviews) %>% 
+  group_by(date) %>% 
+  summarise(clicks_sum = sum(pageviews)) %>% 
+  mutate(type = "other") 
+
+news_plot_table2 <- news_corona %>% # Sum of total pageviews for corona aricles by date
+  select(date, pageviews) %>% 
+  group_by(date) %>% 
+  summarise(clicks_sum = sum(pageviews)) %>% 
+  mutate(type = "corona")
+
+news_plot_table <- rbind(news_plot_table1, news_plot_table2) # Combine tables
+news_plot_table <- news_plot_table[order(type),]
+
+## FIX FLIP THE CHATEGORIES
+ggplot(news_plot_table, mapping = aes(x = as.Date(date), y = clicks_sum, fill = type)) +
+    geom_bar(position = "fill", stat = "identity") +
+    scale_y_continuous(labels = scales::percent) +
+    labs(title = "Percentage of Total Pageviews of All Articles Contributed by Corona Articles",
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Percentage") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+    scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
 
 # Pageviews of Corona articles compared to ALL OTHER articles
-news_not_corona <- news_data[!grepl("Covid-19|korona", news_data$subject, ignore.case = T), ]
 
 news_plot_table1 <- news_not_corona %>% 
   select(date, pageviews) %>% 
