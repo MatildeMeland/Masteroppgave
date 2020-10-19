@@ -167,13 +167,13 @@ table_sub <- as.data.frame(table(subjects_all))
 
 # Formating finance news --------------------------------------------------
 # Piciking finance subjects
-test_finance <- news_data[grep("Reiseliv", news_data$subject, ignore.case = T), ] # Change subject to investegate what articles are in it
+test_finance <- news_data[grep("politikk", news_data$subject, ignore.case = T), ] # Change subject to investegate what articles are in it
 test_finance[sample(nrow(test_finance), 20), 1:2]
 
 # Mest relevat er økonomi, Equinor, olje og gass, teknologi og data, 
 # Litt mer usikker på temaene politikk, Donald Trump, USA osv.
 # Subsetting with all chosen finance subjects
-news_finance <- news_data[grep("økonomi|politikk|trump|teknologi|energi|reiseliv|olje|equinor", news_data$subject, ignore.case = T), ]
+news_finance <- news_data[grep("økonomi|trump|teknologi|energi|reiseliv|olje|equinor|fiskeri|næringsliv|", news_data$subject, ignore.case = T), ]
 
 #news_finance <- news_finance[grep("", news_data$full_text, ignore.case = T), ] # When we add full text we can add words that have to be included
 #news_finance <- news_finance[-grep("", news_data$full_text, ignore.case = T), ] # Words we want to exclue - maybe we want to remove articles which mentions corona 5 or more times or something?
