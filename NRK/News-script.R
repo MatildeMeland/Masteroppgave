@@ -229,15 +229,10 @@ ggplot(data = table_corona_time_noxl, aes(x = date, y = time.sum)) +
 
 
 # Analzing the different subjects -----------------------------------------
-sub <- sort(table(news_corona$subject))
-
-subjects <- news_data$subject
-
-subjects_split <- strsplit(news_data$subject, split = ";")
-
-subjects_all <- unlist(subjects_split)
-
-subjects_unique <- unique(subjects_all) # All unique subjects
+subjects <- strsplit(news_data$subject, split = ";") %>% 
+  unlist() %>% 
+  tolower() %>% 
+  unique()  # All unique subjects
 
 # Most frequent subjects
 table(subjects_all) %>% 

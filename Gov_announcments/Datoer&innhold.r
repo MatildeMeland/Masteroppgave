@@ -35,3 +35,6 @@ df$date <- as.Date(df$date, format="%d.%m.%Y")
 
 # These problems can be fixed with manual work
 # Current file gives us the timeline.
+
+
+

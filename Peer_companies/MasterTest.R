@@ -68,3 +68,44 @@ earnings <- merge(earnings, Ticker_list, by = c("ticker")) %>%
 
 # date
 earnings$date <- earnings$date %>% as.Date(., format = "%d.%m.%Y")
+
+# How many peer comanies do we have?
+
+# 1. Make data set with 2 columns: date and name ++ some empty columns for peers
+peer_companies <- earnings[,2:3]
+peer_companies[,3:100] <- NA
+
+# 2. Check industry dataset for dates that match
+for (i in 1:length(earnings$ticker)) {
+  x <- 3
+  print(i)
+  for (j in 1:length(earnings$ticker)) {
+    if ((earnings$industry[i] == earnings$industry[j])&(earnings$date[j] %in% seq(as.Date(earnings$date[i]), by = "day", length.out = 10))) {
+      peer_companies[i,x] <- earnings$name.x[j] # 3. Write name of matches in the empty columns
+      x <- x + 1
+    }
+  }
+}
+
+# Total number of non na values in the peer columns
+sum(colSums(!is.na(peer_companies[4:100]))) 
+
+
+
+x <- c(2,5,3,9,8,11,6)
+count <- 0
+
+for (i in earnings) {
+  if(val %% 2 == 0)  count = count+1
+}
+print(count)
+
+test <- earnings[earnings$date == "2020-02-12",]
+
+match("2020-02-12", earnings$date)
+
+
+earnings %>% filter(., industry == "Finance" &  date  %in% seq(as.Date("2020-02-12"), by = "day", length.out = 10))
+
+
+
