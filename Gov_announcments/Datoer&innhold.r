@@ -37,4 +37,12 @@ df$date <- as.Date(df$date, format="%d.%m.%Y")
 # Current file gives us the timeline.
 
 
+# Nett-TV data set
+raw2 <- readLines("Gov_announcments/nett-tv.txt", encoding = "UTF-8")
+
+df2 <- as.data.frame(matrix(raw2, ncol = 5, byrow = T)) %>% 
+  select("V2", "V3", "V4")
+
+df2$date <- gsub(" .*$", "", df2$V3)
+
 
