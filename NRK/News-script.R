@@ -170,8 +170,11 @@ ggplot(data = news_plot_table, aes(x = as.Date(date), fill = type)) +
 # PERCENT of pageviews that were related to corona on a day
 
 ## FIX FLIP THE CHATEGORIES
+news_plot_table$type <- factor(news_plot_table$type, levels = c("not corona", "corona"))
+
 ggplot(news_plot_table, mapping = aes(x = as.Date(date), y = clicks_sum, fill = type)) +
-    geom_bar(position = "fill", stat = "identity") +
+  geom_bar(position = "fill", stat = "identity") +
+  scale_fill_manual(values = c("black", "blue")) +
     scale_y_continuous(labels = scales::percent) +
     labs(title = "Percentage of Total Pageviews of All Articles Contributed by Corona Articles",
        subtitle = "October 2019 - September 2020",
