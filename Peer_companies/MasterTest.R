@@ -107,5 +107,17 @@ match("2020-02-12", earnings$date)
 
 earnings %>% filter(., industry == "Finance" &  date  %in% seq(as.Date("2020-02-12"), by = "day", length.out = 10))
 
+earnings %>% filter(., industry == "Finance" &  date  %in% seq(as.Date("2020-02-12"), by = "day", length.out = 10))
+
+earnings %>% filter(., industry == "Finance")
+
+for (i in 1:12){
+  earnings %>% filter(., industry == unique(earnings$industry)[i]) %>% 
+    
+    
+    for (j in 1:117){
+      filter(.,date  %in% seq(unique(earnings$date)[j], by = "day", length.out = 10))
+    }
+}
 
 
