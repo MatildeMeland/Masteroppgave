@@ -3,50 +3,72 @@ library(readxl)
 library(tidyverse)
 library(zoo)
 
-# All data
-stock_final <- read_excel("Stock_data/stock_final.xlsx")
+
+# Load and format data ----------------------------------------------------
+stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
 
 # Fix problem with mismatching dates
-df <- merge(stock_final[,1:2], stock_final[,-2], by=1:2, all.y = T) %>% 
-  select(-c(EQY_SH_OUT))
+stock_data <- 
+  merge(stock_data[,1:2], stock_data[,-2], by=1:2, all.y = T) %>% 
+  select(-EQY_SH_OUT)
 
 # Change structure of variables from character to numeric
-df[,3:7] <- sapply(df[,3:7],as.numeric)
+stock_data[,3:7] <- sapply(stock_data[,3:7],as.numeric)
 
 # Change NAN to 0 in volume
-df$PX_VOLUME[is.na(df$PX_VOLUME)] <- 0
+stock_data$PX_VOLUME[is.na(stock_data$PX_VOLUME)] <- 0
+
+
+# Calculate abnormal returns ----------------------------------------------
 
 # Calculate return 
-df$daily_return <- (df$PX_LAST-df$PX_OPEN)/df$PX_OPEN
+stock_data$daily_return <- (stock_data$PX_LAST-stock_data$PX_OPEN)/stock_data$PX_OPEN
 
-# Calculate abnormal volume
+
+# Calculate abnormal volume -----------------------------------------------
 
 # Volume sum
-#df$volume_sum <- rollsumr(df$PX_VOLUME, k = 30, fill = NA)
+#stock_data$volume_sum <- rollsumr(df$PX_VOLUME, k = 30, fill = NA)
 
 
 # Odeen method
-df$AV_ODEEN <- df$PX_VOLUME/(rollsumr(df$PX_VOLUME, k = 30, fill = NA)/30)
-
+stock_data$AV_ODEEN <- stock_data$PX_VOLUME/(rollsumr(stock_data$PX_VOLUME, k = 30, fill = NA)/30)
 
 
 # DellaVigna formula
-df$AV_DV <- log(((df$PX_VOLUME + lead(df$PX_VOLUME))/2)+1) - log(((rollsumr(df$PX_VOLUME, k = 41, fill = NA)-rollsumr(df$PX_VOLUME, k = 11, fill = NA))/30)+1)
+stock_data$AV_DV <- log(((stock_data$PX_VOLUME + lead(stock_data$PX_VOLUME))/2)+1) - log(((rollsumr(stock_data$PX_VOLUME, k = 41, fill = NA)-rollsumr(stock_data$PX_VOLUME, k = 11, fill = NA))/30)+1)
 
 
 # Calculating market return
 # - weight each stock by market cap?
 # - return of each stock
-test <- df %>% 
-  group_by(Security) %>%
-  summarize(mkt_cap_share = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>%
-  remove_missing()
+test <- stock_data %>% 
+  group_by(date) %>%
+  summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>%
+  remove_missing() %>% 
+  mutate(return = (total_mkt_cap - lag(total_mkt_cap)) / lag(total_mkt_cap)) # lag gives the previous value
 
-test$weight <- test$mkt_cap_share/sum(test$mkt_cap_share)
-sum(test$avg_mkt_cap)
+
+# Plot of market over time
+test %>% ggplot(.,aes(x=date, y=total_mkt_cap/3435)) + #divide by 3435 to make it look similar to that of OSBX
+  ylim(550, 900) +
+  geom_line() +
+  ggtitle("Market over time for all stocks listed on OSBX") +
+  labs(y = "Normalized market value") +
+  theme_bw()
+
+# Plot of return over time
+test %>% ggplot(.,aes(x=date, y=return)) +
+  #ylim(550, 900) +
+  geom_line() +
+  ggtitle("Market return over time for all stocks listed on OSBX") +
+  labs(y = "Return") +
+  theme_bw()
+
+
 
 # Graph of trading volume over time
-df %>% 
+stock_data %>% 
   group_by(date) %>% 
   summarize(total_volume = sum(PX_VOLUME)) %>% ungroup %>% 
   ggplot(., aes(x=date, y=total_volume/10^6)) +
@@ -58,7 +80,7 @@ df %>%
 # Graph of trading volume over time
 # Differentiating between company size.
 
-grouped_df <- df %>% 
+grouped_df <- stock_data %>% 
   group_by(Security) %>%
   summarize(avg_mkt_cap = mean(CUR_MKT_CAP, na.rm = T)) %>%
   remove_missing() %>% 
@@ -66,7 +88,7 @@ grouped_df <- df %>%
                            quantile(avg_mkt_cap, c(0, .50, .75, 1)),
                            labels = c('Small', 'Medium', 'Big'),
                            include.lowest = TRUE)) %>% 
-  merge(.,df, by = "Security")  # idk if this is the most efficient way..
+  merge(.,stock_data, by = "Security")  # idk if this is the most efficient way..
 
 # Plot by each category.
 # Intrestingly we see that it is the medium sized companies that is deriving most of the volume
@@ -81,12 +103,12 @@ grouped_df %>%
   theme_bw()
 
 # Could it be that most of this variation in volume is caused by Norwegian?
-tot_vol <- df %>% 
+tot_vol <- stock_data %>% 
   group_by(Security) %>% 
   summarize(total_volume = sum(PX_VOLUME))
   # No.. KOA has had most trades over the period.
 
-tot_vol2 <- df %>% 
+tot_vol2 <- stock_data %>% 
   group_by(Security) %>%
   summarize(avg_mkt_cap = mean(CUR_MKT_CAP, na.rm = T)) %>%
   remove_missing() %>% 
@@ -95,4 +117,18 @@ tot_vol2 <- df %>%
                           labels = c('Small', 'Medium', 'Big'),
                           include.lowest = TRUE)) %>% 
   merge(.,tot_vol, by = "Security")
+
+
+# Calculate volatility ----------------------------------------------------
+stock_data$PX_LAST <- na.locf(stock_data$PX_LAST) # Replace NAs in PX_LAST with previous non NA value, there may be a problem if first value is NA - need to look at this
+
+stock_data$rn <- log(stock_data$PX_LAST/lag(stock_data$PX_LAST))
+
+stock_data <- stock_data[-1,]
+
+stock_data$volatility_calc <- rollmeanr(stock_data$rn, k = 21, fill = NA)
+
+mean(stock_data$rn[2:21])
+
+
 
