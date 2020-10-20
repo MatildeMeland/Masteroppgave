@@ -41,15 +41,14 @@ library(tidyverse)
 
 # _______________________________________________________________________#
 ## Data cleaning
-data <- read_csv("Peer_companies/earning_data.csv") %>% 
+data_dup <- read_csv("Peer_companies/earning_data.csv") %>% 
   select(ticker, name, date)
 
 # Reformat the date
-data_dup <- data
 data_dup$date <- gsub("T.+","",data_dup$date)   # remove minutes from date
 
-newdate <- strptime(as.character(data_dup$date), "%Y-%m-%d") # change format
-data_dup$date <- format(newdate, "%d.%m.%Y")
+
+data_dup$date <- format(strptime(as.character(data_dup$date), "%Y-%m-%d"), "%d.%m.%Y") # change format
 
 # Remove duplicats
 
@@ -62,10 +61,10 @@ Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx")
 
 # Need to remove all observations that have an earning announcement, but are not listed on the stock exchange
 
-test <- data_dup[data_dup$ticker %in% Ticker_list$ticker,]
+earnings <- data_dup[data_dup$ticker %in% Ticker_list$ticker,]
 
-test2 <- merge(test, Ticker_list, by = c("ticker")) %>% 
+earnings <- merge(earnings, Ticker_list, by = c("ticker")) %>% 
   select(ticker, name.x, date, industry, industri)
 
 # date
-test2$date <- test2$date %>% as.Date(., format = "%d.%m.%Y")
+earnings$date <- earnings$date %>% as.Date(., format = "%d.%m.%Y")
