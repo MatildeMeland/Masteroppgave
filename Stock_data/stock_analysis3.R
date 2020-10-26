@@ -126,8 +126,14 @@ stock_data %>%
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 # Looking at companies that have earnings report on a day with a conference on TV
-common <- as.Date(intersect(earnings$date, df2$date)) # Find the common rows
-test <- earnings[earnings$date %in% common,] # Extract the common rows in the dataset
+high_distraction <- earnings[earnings$date %in% intersect(earnings$date, df2$date),]# Extract the common rows in the dataset
+low_distraction <- earnings[!earnings$date %in% intersect(earnings$date, df2$date),]
+
+# Comparing AV for companies on high and low distraction days
+# Exctracting AV day of announcment
+
+
+# Exctracting AV k days after announcment 
 
 # Calculating market return
 # - weight each stock by market cap?
@@ -137,10 +143,6 @@ test <- stock_data %>%
   summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>%
   remove_missing() %>% 
   mutate(return = (total_mkt_cap - lag(total_mkt_cap)) / lag(total_mkt_cap)) # lag gives the previous value
-
-
-#
-
 
 
 
@@ -220,9 +222,8 @@ tot_vol2 <- stock_data %>%
 # Calculate volatility ----------------------------------------------------
 stock_data$PX_LAST <- na.locf(stock_data$PX_LAST) # Replace NAs in PX_LAST with previous non NA value, there may be a problem if first value is NA - need to look at this
 
-  # Plots -------------------------------------------------------------------
+# Plots -------------------------------------------------------------------
 
->>>>>>> 6ba2ed53de118f68b3ea08649ee5e89074dd272b
 
 stock_data$rn <- log(stock_data$PX_LAST/lag(stock_data$PX_LAST))
 
