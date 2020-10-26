@@ -44,5 +44,5 @@ df2 <- as.data.frame(matrix(raw2, ncol = 5, byrow = T)) %>%
   select("V2", "V3", "V4")
 
 df2$date <- gsub(" .*$", "", df2$V3)
-
+df2$date <- as.Date(df2$date, format="%d.%m.%Y")
 
