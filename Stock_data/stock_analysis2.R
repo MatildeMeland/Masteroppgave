@@ -42,10 +42,7 @@ for (i in unique(stock_data$Security)) {
 }
 
 
-# Calculate abnormal returns ----------------------------------------------
 
-# Calculate return 
-stock_data$daily_return <- (stock_data$PX_LAST-stock_data$PX_OPEN)/stock_data$PX_OPEN
 
 
 # Calculate abnormal volume -----------------------------------------------
@@ -61,18 +58,49 @@ stock_data$AV_ODEEN <- stock_data$PX_VOLUME/(rollsumr(stock_data$PX_VOLUME, k = 
 # DellaVigna formula
 stock_data$AV_DV <- log(((stock_data$PX_VOLUME + lead(stock_data$PX_VOLUME))/2)+1) - log(((rollsumr(stock_data$PX_VOLUME, k = 41, fill = NA)-rollsumr(stock_data$PX_VOLUME, k = 11, fill = NA))/30)+1)
 
+#####
 
-# Calculating market return
-# - weight each stock by market cap?
-# - return of each stock
+
+# Calculating market return for each company in each industry
+# - Import dataset with industry specifications
+
+Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx")
+
+colnames(Ticker_list)[5] <- "Security"
+
+stock_data <- merge(stock_data, Ticker_list, by = "Security") %>% 
+  select(-c(ticker, name, industri))
+
+# Create a value for total market cap for each industry and market return for each security.
+stock_data <- stock_data %>% 
+  group_by(industry, date) %>%
+  summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>% 
+  merge(., stock_data, by = c("industry", "date")) %>% 
+  arrange(., Security) %>% 
+  group_by(Security) %>% 
+  mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1)) %>%        # market return
+  mutate(daily_return = (PX_LAST-PX_OPEN)/PX_OPEN)                        # daily return
+
 test <- stock_data %>% 
-  group_by(date) %>%
-  summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>%
-  remove_missing() %>% 
-  mutate(return = (total_mkt_cap - lag(total_mkt_cap)) / lag(total_mkt_cap)) # lag gives the previous value
+  filter(Security %in%  "EQNR NO Equity") %>% 
+  select(date, Security,industry, MR, daily_return) %>% 
+  mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1))
+
+prod(test[1:10,5]+1)
 
 
-#
+exp(sum(log(test[1:46,5]+1)))
+
+
+prod(1:3)
+
+cumprod(test[1:46,5]+1)
+
+
+# Create a variable for cumulative abnormal returns
+
+stock_data %>% filter( Security %in% "EQNR NO Equity")
+
 
 
 
