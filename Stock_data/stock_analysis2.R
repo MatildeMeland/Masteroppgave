@@ -9,14 +9,37 @@ stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
 
 # Fix problem with mismatching dates
 stock_data <- 
-  merge(stock_data[,1:2], stock_data[,-2], by=1:2, all.y = T) %>% 
+  merge(stock_data[,-2],stock_data[,1:2], by=1:2, all.y = T) %>% 
   select(-EQY_SH_OUT)
+
+colnames(stock_data)[2] <- "date"
 
 # Change structure of variables from character to numeric
 stock_data[,3:7] <- sapply(stock_data[,3:7],as.numeric)
 
 # Change NAN to 0 in volume
 stock_data$PX_VOLUME[is.na(stock_data$PX_VOLUME)] <- 0
+
+# Change NA's in PX_LAST to last value of PX_LAST
+
+
+# Fix px_last
+for (i in unique(stock_data$Security)) {
+  stock_data$PX_LAST[stock_data$Security == i] <- na.locf(stock_data$PX_LAST[stock_data$Security == i], na.rm = FALSE)
+}
+
+
+# Fix px_open
+for (i in unique(stock_data$Security)) {
+  x <- min(as.numeric(row.names(stock_data[stock_data$Security == i,]))) + 1
+  z <- max(as.numeric(row.names(stock_data[stock_data$Security == i,])))
+  
+  for (j in x:z) {
+    if (is.na(stock_data$PX_OPEN[j])) {
+      stock_data$PX_OPEN[j] <- stock_data$PX_LAST[j-1]
+    }
+  }
+}
 
 
 # Calculate abnormal returns ----------------------------------------------
@@ -47,6 +70,14 @@ test <- stock_data %>%
   summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>%
   remove_missing() %>% 
   mutate(return = (total_mkt_cap - lag(total_mkt_cap)) / lag(total_mkt_cap)) # lag gives the previous value
+
+
+#
+
+
+
+
+# Plots -------------------------------------------------------------------
 
 
 # Plot of market over time
@@ -118,9 +149,12 @@ tot_vol2 <- stock_data %>%
                           include.lowest = TRUE)) %>% 
   merge(.,tot_vol, by = "Security")
 
-
+# Various plots
 # Calculate volatility ----------------------------------------------------
 stock_data$PX_LAST <- na.locf(stock_data$PX_LAST) # Replace NAs in PX_LAST with previous non NA value, there may be a problem if first value is NA - need to look at this
+
+# Plots -------------------------------------------------------------------
+
 
 stock_data$rn <- log(stock_data$PX_LAST/lag(stock_data$PX_LAST))
 
@@ -129,6 +163,10 @@ stock_data <- stock_data[-1,]
 stock_data$volatility_calc <- rollmeanr(stock_data$rn, k = 21, fill = NA)
 
 mean(stock_data$rn[2:21])
+
+
+
+
 
 
 
