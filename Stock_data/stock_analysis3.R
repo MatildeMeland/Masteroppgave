@@ -8,12 +8,12 @@ stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
 
 # Fix problem with mismatching dates
 stock_data <- 
-<<<<<<< HEAD
-  merge(stock_data[,-2], stock_data[,1:2], by=1:2, all.y = T) %>% 
-=======
+  <<<<<<< HEAD
+merge(stock_data[,-2], stock_data[,1:2], by=1:2, all.y = T) %>% 
+  =======
   merge(stock_data[,-2],stock_data[,1:2], by=1:2, all.y = T) %>% 
->>>>>>> 6ba2ed53de118f68b3ea08649ee5e89074dd272b
-  select(-EQY_SH_OUT)
+  >>>>>>> 6ba2ed53de118f68b3ea08649ee5e89074dd272b
+select(-EQY_SH_OUT)
 
 colnames(stock_data)[2] <- "date"
 
@@ -183,9 +183,9 @@ grouped_df <- stock_data %>%
   summarize(avg_mkt_cap = mean(CUR_MKT_CAP, na.rm = T)) %>%
   remove_missing() %>% 
   mutate(Size_Level = cut(avg_mkt_cap,
-                           quantile(avg_mkt_cap, c(0, .50, .75, 1)),
-                           labels = c('Small', 'Medium', 'Big'),
-                           include.lowest = TRUE)) %>% 
+                          quantile(avg_mkt_cap, c(0, .50, .75, 1)),
+                          labels = c('Small', 'Medium', 'Big'),
+                          include.lowest = TRUE)) %>% 
   merge(.,stock_data, by = "Security")  # idk if this is the most efficient way..
 
 # Plot by each category.
@@ -204,7 +204,7 @@ grouped_df %>%
 tot_vol <- stock_data %>% 
   group_by(Security) %>% 
   summarize(total_volume = sum(PX_VOLUME))
-  # No.. KOA has had most trades over the period.
+# No.. KOA has had most trades over the period.
 
 tot_vol2 <- stock_data %>% 
   group_by(Security) %>%
@@ -220,9 +220,7 @@ tot_vol2 <- stock_data %>%
 # Calculate volatility ----------------------------------------------------
 stock_data$PX_LAST <- na.locf(stock_data$PX_LAST) # Replace NAs in PX_LAST with previous non NA value, there may be a problem if first value is NA - need to look at this
 
-<<<<<<< HEAD
-=======
-# Plots -------------------------------------------------------------------
+  # Plots -------------------------------------------------------------------
 
 >>>>>>> 6ba2ed53de118f68b3ea08649ee5e89074dd272b
 
@@ -233,10 +231,3 @@ stock_data <- stock_data[-1,]
 stock_data$volatility_calc <- rollmeanr(stock_data$rn, k = 21, fill = NA)
 
 mean(stock_data$rn[2:21])
-
-
-
-
-
-
-
