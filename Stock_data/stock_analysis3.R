@@ -8,48 +8,26 @@ stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
 
 # Fix problem with mismatching dates
 stock_data <- 
-  <<<<<<< HEAD
-merge(stock_data[,-2], stock_data[,1:2], by=1:2, all.y = T) %>% 
-  =======
-  merge(stock_data[,-2],stock_data[,1:2], by=1:2, all.y = T) %>% 
-  >>>>>>> 6ba2ed53de118f68b3ea08649ee5e89074dd272b
-select(-EQY_SH_OUT)
+  merge(stock_data[,-2], stock_data[,1:2], by=1:2, all.y = T) %>% 
+  select(-EQY_SH_OUT)
 
 colnames(stock_data)[2] <- "date"
+
+stock_data$date <- as.Date(stock_data$date, format="%d.%m.%Y")
 
 # Change structure of variables from character to numeric
 stock_data[,3:7] <- sapply(stock_data[,3:7],as.numeric)
 
-# Change NAN to 0 in volume
+# Change NA to 0 in volume
 stock_data$PX_VOLUME[is.na(stock_data$PX_VOLUME)] <- 0
 
 # Change NA's in PX_LAST to last value of PX_LAST
-
-
-# Fix px_last
 for (i in unique(stock_data$Security)) {
   stock_data$PX_LAST[stock_data$Security == i] <- na.locf(stock_data$PX_LAST[stock_data$Security == i], na.rm = FALSE)
 }
 
 
-# Fix px_open
-for (i in unique(stock_data$Security)) {
-  x <- min(as.numeric(row.names(stock_data[stock_data$Security == i,]))) + 1
-  z <- max(as.numeric(row.names(stock_data[stock_data$Security == i,])))
-  
-  for (j in x:z) {
-    if (is.na(stock_data$PX_OPEN[j])) {
-      stock_data$PX_OPEN[j] <- stock_data$PX_LAST[j-1]
-    }
-  }
-}
-
-
-for (i in unique(stock_data$Security)) {
-  stock_data$PX_LAST[stock_data$Security == i] <- na.locf(stock_data$PX_LAST[stock_data$Security == i], na.rm = FALSE)
-}
-
-
+# Same fix for PX_OPEN
 for (i in unique(stock_data$Security)) {
   x <- min(as.numeric(row.names(stock_data[stock_data$Security == i,]))) + 1
   z <- max(as.numeric(row.names(stock_data[stock_data$Security == i,])))
@@ -71,11 +49,6 @@ stock_data$daily_return <- (stock_data$PX_LAST-stock_data$PX_OPEN)/stock_data$PX
 
 
 # Calculate abnormal volume -----------------------------------------------
-
-# Volume sum
-#stock_data$volume_sum <- rollsumr(df$PX_VOLUME, k = 30, fill = NA)
-
-
 # Odeen method
 for (i in unique(stock_data$Security)) {
   stock_data$AV_ODEEN[stock_data$Security == i] <- stock_data$PX_VOLUME[stock_data$Security == i]/(rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 30, fill = NA)/30)
@@ -125,13 +98,29 @@ stock_data %>%
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
+
+# Data formating for regression -------------------------------------------
+# Dummy variable for government announcments
+news_data$xl <- ifelse(news_data$xl == 'XL', 1, 0)
+stock_data$gov <- ifelse(stock_data$date %in% ea)
+
+# Dummy variable for earnings announcments
+stock_data$earnings <- earnings[earnings$date %in% intersect(earnings$date, df2$date),]
+
 # Looking at companies that have earnings report on a day with a conference on TV
+# Load in data from Peer_companies -> MasterTest
 high_distraction <- earnings[earnings$date %in% intersect(earnings$date, df2$date),]# Extract the common rows in the dataset
 low_distraction <- earnings[!earnings$date %in% intersect(earnings$date, df2$date),]
 
 # Comparing AV for companies on high and low distraction days
 # Exctracting AV day of announcment
+high_distraction <- high_distraction[,-2]
+stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
+high_distraction <- merge(high_distraction, stock_data, by=1:2)
 
+high_distraction[1,1] == stock_data[1,1]
+
+high_distraction[1,1:2] == stock_data[145,1:2]
 
 # Exctracting AV k days after announcment 
 
