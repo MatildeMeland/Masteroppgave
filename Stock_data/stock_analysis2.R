@@ -3,13 +3,11 @@ library(readxl)
 library(tidyverse)
 library(zoo)
 
-
 # Load and format data ----------------------------------------------------
 stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
 
 # Fix problem with mismatching dates
-stock_data <- 
-  merge(stock_data[,-2],stock_data[,1:2], by=1:2, all.y = T) %>% 
+stock_data <- merge(stock_data[,-2],stock_data[,1:2], by=1:2, all.y = T) %>% 
   select(-EQY_SH_OUT)
 
 colnames(stock_data)[2] <- "date"
@@ -44,6 +42,7 @@ for (i in unique(stock_data$Security)) {
 
 
 
+ 
 
 # Calculate abnormal volume -----------------------------------------------
 
@@ -58,7 +57,8 @@ stock_data$AV_ODEEN <- stock_data$PX_VOLUME/(rollsumr(stock_data$PX_VOLUME, k = 
 # DellaVigna formula
 stock_data$AV_DV <- log(((stock_data$PX_VOLUME + lead(stock_data$PX_VOLUME))/2)+1) - log(((rollsumr(stock_data$PX_VOLUME, k = 41, fill = NA)-rollsumr(stock_data$PX_VOLUME, k = 11, fill = NA))/30)+1)
 
-#####
+
+# Cumulative abnormal return ----------------------------------------------
 
 
 # Calculating market return for each company in each industry
@@ -72,34 +72,23 @@ stock_data <- merge(stock_data, Ticker_list, by = "Security") %>%
   select(-c(ticker, name, industri))
 
 # Create a value for total market cap for each industry and market return for each security.
+# Further use these values to calculate cumulative abnormal return
 stock_data <- stock_data %>% 
   group_by(industry, date) %>%
   summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>% 
   merge(., stock_data, by = c("industry", "date")) %>% 
   arrange(., Security) %>% 
   group_by(Security) %>% 
-  mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1)) %>%        # market return
-  mutate(daily_return = (PX_LAST-PX_OPEN)/PX_OPEN)                        # daily return
+  
+  mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1)) %>%        # market return for each industry
+  
+  mutate(daily_return = (PX_LAST-PX_OPEN)/PX_OPEN) %>%                    # daily return for each company
 
-test <- stock_data %>% 
-  filter(Security %in%  "EQNR NO Equity") %>% 
-  select(date, Security,industry, MR, daily_return) %>% 
-  mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1))
-
-prod(test[1:10,5]+1)
-
-
-exp(sum(log(test[1:46,5]+1)))
-
-
-prod(1:3)
-
-cumprod(test[1:46,5]+1)
-
-
-# Create a variable for cumulative abnormal returns
-
-stock_data %>% filter( Security %in% "EQNR NO Equity")
+  mutate(CAR1 = c(rep(NA,times = 1), as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
+         -c(rep(NA,times = 1), as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "left")))) %>% 
+  
+  mutate(CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))))
 
 
 
@@ -177,11 +166,10 @@ tot_vol2 <- stock_data %>%
                           include.lowest = TRUE)) %>% 
   merge(.,tot_vol, by = "Security")
 
-# Various plots
+# Various plots 
+
 # Calculate volatility ----------------------------------------------------
 stock_data$PX_LAST <- na.locf(stock_data$PX_LAST) # Replace NAs in PX_LAST with previous non NA value, there may be a problem if first value is NA - need to look at this
-
-# Plots -------------------------------------------------------------------
 
 
 stock_data$rn <- log(stock_data$PX_LAST/lag(stock_data$PX_LAST))
@@ -198,3 +186,4 @@ mean(stock_data$rn[2:21])
 
 
 
+ 
