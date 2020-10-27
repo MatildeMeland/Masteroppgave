@@ -6,7 +6,7 @@ library(tidyverse)
 # #_____________________________________________________________________#
 # #Uncomment with Ctrl + Shift + C
 
-# #Download earnings announcements from Oslo Børs
+# #Download earnings announcements from Oslo B?rs
 # res <- POST("https://newsweb.oslobors.no/obsvc/news.obsvc?category=1002&fromDate=2020-01-01&issuer=&toDate=2020-03-01", verbose())
 # x <- content(res, as = "text")
 # input <- fromJSON(x)
@@ -40,6 +40,7 @@ library(tidyverse)
 # # write.csv(data, file = "earning_data.csv")
 
 # _______________________________________________________________________#
+
 ## Data cleaning
 data_dup <- read_csv("Peer_companies/earning_data.csv") %>% 
   select(ticker, name, date)
@@ -70,6 +71,13 @@ rm(data_dup) # Don't need this anymore
 
 # date
 earnings$date <- earnings$date %>% as.Date(., format = "%d.%m.%Y")
+
+write.csv(earnings, file = "Stock_data/earning_data.csv")
+
+
+
+
+
 
 # How many peer comanies do we have?
 
