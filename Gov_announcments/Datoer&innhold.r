@@ -49,3 +49,5 @@ government_tv$date <- as.Date(government_tv$date, format="%d.%m.%Y")
 colnames(government_tv) <- c("title", "title2", "content", "date")
 df2$date <- gsub(" .*$", "", df2$V3)
 
+write.csv(government_tv, file = "Stock_data/government_tv.csv")
+
