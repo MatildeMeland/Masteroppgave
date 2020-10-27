@@ -40,10 +40,35 @@ for (i in unique(stock_data$Security)) {
 }
 
 
+# Announcement date modification ------------------------------------------
 
 
- 
+# Loading in data
+earning_data <- read_csv("Stock_data/earning_data.csv") %>% 
+  select(-c(X1,industri, industry))
 
+# Create equal tickers
+stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
+
+# Change column names
+colnames(earning_data) <- c("Security", "Name", "date")
+
+# Remove duplicated dates with about 10 days in between
+earning_data <- earning_data %>%
+  group_by(Security) %>% 
+  mutate(DUP = ifelse(abs(difftime(date, lag(date))) <= 10,1,0)) %>% 
+  subset(DUP %in%  0| DUP %in%  NA)
+
+
+# Creates a dataset with only earnings dates in stock data.
+combined <- right_join(earning_data, stock_data, by = "Security" ) %>% 
+  mutate(AD = ifelse(date.x == date.y,1,0)) %>% 
+  subset(AD ==1) %>% select(-c(date.y, AD))
+
+colnames(combined[3]) <- "date"
+
+
+                 
 # Calculate abnormal volume -----------------------------------------------
 
 # Volume sum
