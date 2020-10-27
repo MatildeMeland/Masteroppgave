@@ -7,12 +7,7 @@ library(zoo)
 stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
 
 # Fix problem with mismatching dates
-stock_data <- 
-<<<<<<< HEAD
-  merge(stock_data[,-2], stock_data[,1:2], by=1:2, all.y = T) %>% 
-=======
-  merge(stock_data[,-2],stock_data[,1:2], by=1:2, all.y = T) %>% 
->>>>>>> 6ba2ed53de118f68b3ea08649ee5e89074dd272b
+stock_data <- merge(stock_data[,-2],stock_data[,1:2], by=1:2, all.y = T) %>% 
   select(-EQY_SH_OUT)
 
 colnames(stock_data)[2] <- "date"
@@ -45,30 +40,9 @@ for (i in unique(stock_data$Security)) {
 }
 
 
-for (i in unique(stock_data$Security)) {
-  stock_data$PX_LAST[stock_data$Security == i] <- na.locf(stock_data$PX_LAST[stock_data$Security == i], na.rm = FALSE)
-}
 
 
-for (i in unique(stock_data$Security)) {
-  x <- min(as.numeric(row.names(stock_data[stock_data$Security == i,]))) + 1
-  z <- max(as.numeric(row.names(stock_data[stock_data$Security == i,])))
-  
-  for (j in x:z) {
-    if (is.na(stock_data$PX_OPEN[j])) {
-      stock_data$PX_OPEN[j] <- stock_data$PX_LAST[j-1]
-    }
-  }
-}
-
-# Remove unnecessary variables
-rm(i, j, x, z)
-
-# Calculate abnormal returns ----------------------------------------------
-
-# Calculate return 
-stock_data$daily_return <- (stock_data$PX_LAST-stock_data$PX_OPEN)/stock_data$PX_OPEN
-
+ 
 
 # Calculate abnormal volume -----------------------------------------------
 
@@ -77,69 +51,45 @@ stock_data$daily_return <- (stock_data$PX_LAST-stock_data$PX_OPEN)/stock_data$PX
 
 
 # Odeen method
-for (i in unique(stock_data$Security)) {
-  stock_data$AV_ODEEN[stock_data$Security == i] <- stock_data$PX_VOLUME[stock_data$Security == i]/(rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 30, fill = NA)/30)
-}
+stock_data$AV_ODEEN <- stock_data$PX_VOLUME/(rollsumr(stock_data$PX_VOLUME, k = 30, fill = NA)/30)
+
 
 # DellaVigna formula
-for (i in unique(stock_data$Security)) {
-  stock_data$AV_DV[stock_data$Security == i] <- log(((stock_data$PX_VOLUME[stock_data$Security == i] + lead(stock_data$PX_VOLUME[stock_data$Security == i]))/2)+1) - log(((rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 41, fill = NA)-rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 11, fill = NA))/30)+1)
-}
-
-# Average abnormal volume by day
-AV_avg <- stock_data %>% 
-  select(date, AV_ODEEN) %>% 
-  group_by(date) %>% 
-  summarise(av.mean = mean(AV_ODEEN, na.rm = T))
+stock_data$AV_DV <- log(((stock_data$PX_VOLUME + lead(stock_data$PX_VOLUME))/2)+1) - log(((rollsumr(stock_data$PX_VOLUME, k = 41, fill = NA)-rollsumr(stock_data$PX_VOLUME, k = 11, fill = NA))/30)+1)
 
 
-stock_data %>% 
-  select(date, AV_ODEEN) %>% 
-  group_by(date) %>% 
-  summarise(av.mean = mean(AV_ODEEN, na.rm = T)) %>%
-  na.omit %>% 
+# Cumulative abnormal return ----------------------------------------------
+
+
+# Calculating market return for each company in each industry
+# - Import dataset with industry specifications
+
+Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx")
+
+colnames(Ticker_list)[5] <- "Security"
+
+stock_data <- merge(stock_data, Ticker_list, by = "Security") %>% 
+  select(-c(ticker, name, industri))
+
+# Create a value for total market cap for each industry and market return for each security.
+# Further use these values to calculate cumulative abnormal return
+stock_data <- stock_data %>% 
+  group_by(industry, date) %>%
+  summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>% 
+  merge(., stock_data, by = c("industry", "date")) %>% 
+  arrange(., Security) %>% 
+  group_by(Security) %>% 
   
-  ggplot(., aes(x = as.Date(date), y = av.mean)) +
-  geom_line(color = "blue") +
-  labs(title = "Average Abnormal Volum",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = ".") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
-
-
-# Total abnormal volume by day
-stock_data %>% 
-  select(date, AV_ODEEN) %>% 
-  group_by(date) %>% 
-  summarise(av.sum = sum(AV_ODEEN, na.rm = T)) %>%
-  na.omit %>% 
+  mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1)) %>%        # market return for each industry
   
-  ggplot(., aes(x = as.Date(date), y = av.sum)) +
-  geom_line(color = "blue") +
-  labs(title = "Sum Abnormal Volum",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = ".") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+  mutate(daily_return = (PX_LAST-PX_OPEN)/PX_OPEN) %>%                    # daily return for each company
 
-# Looking at companies that have earnings report on a day with a conference on TV
-common <- as.Date(intersect(earnings$date, df2$date)) # Find the common rows
-test <- earnings[earnings$date %in% common,] # Extract the common rows in the dataset
+  mutate(CAR1 = c(rep(NA,times = 1), as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
+         -c(rep(NA,times = 1), as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "left")))) %>% 
+  
+  mutate(CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))))
 
-# Calculating market return
-# - weight each stock by market cap?
-# - return of each stock
-test <- stock_data %>% 
-  group_by(date) %>%
-  summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>%
-  remove_missing() %>% 
-  mutate(return = (total_mkt_cap - lag(total_mkt_cap)) / lag(total_mkt_cap)) # lag gives the previous value
-
-
-#
 
 
 
@@ -216,15 +166,11 @@ tot_vol2 <- stock_data %>%
                           include.lowest = TRUE)) %>% 
   merge(.,tot_vol, by = "Security")
 
-# Various plots
+# Various plots 
+
 # Calculate volatility ----------------------------------------------------
 stock_data$PX_LAST <- na.locf(stock_data$PX_LAST) # Replace NAs in PX_LAST with previous non NA value, there may be a problem if first value is NA - need to look at this
 
-<<<<<<< HEAD
-=======
-# Plots -------------------------------------------------------------------
-
->>>>>>> 6ba2ed53de118f68b3ea08649ee5e89074dd272b
 
 stock_data$rn <- log(stock_data$PX_LAST/lag(stock_data$PX_LAST))
 
@@ -240,3 +186,4 @@ mean(stock_data$rn[2:21])
 
 
 
+ 
