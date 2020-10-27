@@ -38,11 +38,13 @@ df$date <- as.Date(df$date, format="%d.%m.%Y")
 
 
 # Nett-TV data set
-raw2 <- readLines("Gov_announcments/nett-tv.txt", encoding = "UTF-8")
+government_tv <- readLines("Gov_announcments/nett-tv.txt", encoding = "UTF-8")
 
-df2 <- as.data.frame(matrix(raw2, ncol = 5, byrow = T)) %>% 
+government_tv <- as.data.frame(matrix(government_tv, ncol = 5, byrow = T)) %>% 
   select("V2", "V3", "V4")
 
-df2$date <- gsub(" .*$", "", df2$V3)
-df2$date <- as.Date(df2$date, format="%d.%m.%Y")
+government_tv$date <- gsub(" .*$", "", government_tv$V3)
+government_tv$date <- as.Date(government_tv$date, format="%d.%m.%Y")
+
+colnames(government_tv) <- c("title", "title2", "content", "date")
 

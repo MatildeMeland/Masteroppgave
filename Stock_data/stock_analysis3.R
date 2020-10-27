@@ -100,12 +100,34 @@ stock_data %>%
 
 
 # Data formating for regression -------------------------------------------
+# Varaible for month & day
+stock_data$month <- format(stock_data$date,"%B")
+stock_data$day <- format(stock_data$date,"%A")
+
 # Dummy variable for government announcments
-news_data$xl <- ifelse(news_data$xl == 'XL', 1, 0)
-stock_data$gov <- ifelse(stock_data$date %in% ea)
+stock_data$gov <- ifelse(stock_data$date %in% earnings$date, 1, 0)
+
+# Variable for amount of news
+news_data_formatted <- news_corona %>% 
+  select(date, pageviews) %>% 
+  mutate(nr_articles = n_distinct(date)) %>% 
+  group_by(date) %>% 
+  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
+  mutate(clicks_article = clicks.sum/articles.sum)
+
+
+news_data_formatted$news <- cut(news_data_formatted$clicks_article,
+                                quantile(news_data_formatted$clicks_article, c(0, .25, .50, .75, 1)),
+                                labels = c("very low", "low", "high", "very high"),
+                                include.lowest = TRUE)
+
+# Variable for amount of corona news
 
 # Dummy variable for earnings announcments
+stock_data$earnings <- ifelse(stock_data$date == government_tv$date, 1, 0)
 stock_data$earnings <- earnings[earnings$date %in% intersect(earnings$date, df2$date),]
+
+
 
 # Looking at companies that have earnings report on a day with a conference on TV
 # Load in data from Peer_companies -> MasterTest

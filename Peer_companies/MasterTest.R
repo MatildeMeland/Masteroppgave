@@ -6,7 +6,7 @@ library(tidyverse)
 # #_____________________________________________________________________#
 # #Uncomment with Ctrl + Shift + C
 
-# #Download earnings announcements from Oslo BÃ¸rs
+# #Download earnings announcements from Oslo Børs
 # res <- POST("https://newsweb.oslobors.no/obsvc/news.obsvc?category=1002&fromDate=2020-01-01&issuer=&toDate=2020-03-01", verbose())
 # x <- content(res, as = "text")
 # input <- fromJSON(x)
@@ -65,6 +65,8 @@ earnings <- data_dup[data_dup$ticker %in% Ticker_list$ticker,]
 
 earnings <- merge(earnings, Ticker_list, by = c("ticker")) %>% 
   select(ticker, name.x, date, industry, industri)
+
+rm(data_dup) # Don't need this anymore
 
 # date
 earnings$date <- earnings$date %>% as.Date(., format = "%d.%m.%Y")
