@@ -43,13 +43,9 @@ government_tv <- readLines("Gov_announcments/nett-tv.txt", encoding = "UTF-8")
 government_tv <- as.data.frame(matrix(government_tv, ncol = 5, byrow = T)) %>% 
   select("V2", "V3", "V4")
 
-<<<<<<< HEAD
 government_tv$date <- gsub(" .*$", "", government_tv$V3)
 government_tv$date <- as.Date(government_tv$date, format="%d.%m.%Y")
 
 colnames(government_tv) <- c("title", "title2", "content", "date")
-=======
 df2$date <- gsub(" .*$", "", df2$V3)
-
->>>>>>> d2ed28dda4d7b1202228751dfa3dd2d3117f7e03
 
