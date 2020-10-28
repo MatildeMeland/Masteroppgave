@@ -39,9 +39,6 @@ for (i in unique(stock_data$Security)) {
   }
 }
 
-# Remove unnecessary variables
-rm(i, j, x, z)
-
 # Calculate abnormal returns ----------------------------------------------
 
 # Calculate return 
@@ -59,42 +56,39 @@ for (i in unique(stock_data$Security)) {
   stock_data$AV_DV[stock_data$Security == i] <- log(((stock_data$PX_VOLUME[stock_data$Security == i] + lead(stock_data$PX_VOLUME[stock_data$Security == i]))/2)+1) - log(((rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 41, fill = NA)-rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 11, fill = NA))/30)+1)
 }
 
-# Average abnormal volume by day
-AV_avg <- stock_data %>% 
-  select(date, AV_ODEEN) %>% 
-  group_by(date) %>% 
-  summarise(av.mean = mean(AV_ODEEN, na.rm = T))
+# Remove unnecessary variables
+rm(i, j, x, z)
 
-stock_data %>% 
-  select(date, AV_ODEEN) %>% 
-  group_by(date) %>% 
-  summarise(av.mean = mean(AV_ODEEN, na.rm = T)) %>%
-  na.omit %>% 
-  
-  ggplot(., aes(x = as.Date(date), y = av.mean)) +
-  geom_line(color = "blue") +
-  labs(title = "Average Abnormal Volum",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = ".") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+# Cumulative abnormal return ----------------------------------------------
 
-# Total abnormal volume by day
-stock_data %>% 
-  select(date, AV_ODEEN) %>% 
-  group_by(date) %>% 
-  summarise(av.sum = sum(AV_ODEEN, na.rm = T)) %>%
-  na.omit %>% 
+# Calculating market return for each company in each industry
+# - Import dataset with industry specifications
+
+Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx")
+
+colnames(Ticker_list)[5] <- "Security"
+
+stock_data <- merge(stock_data, Ticker_list, by = "Security") %>% 
+  select(-c(ticker, name, industri))
+
+# Create a value for total market cap for each industry and market return for each security.
+# Further use these values to calculate cumulative abnormal return
+stock_data <- stock_data %>% 
+  group_by(industry, date) %>%
+  summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>% 
+  merge(., stock_data, by = c("industry", "date")) %>% 
+  arrange(., Security) %>% 
+  group_by(Security) %>% 
   
-  ggplot(., aes(x = as.Date(date), y = av.sum)) +
-  geom_line(color = "blue") +
-  labs(title = "Sum Abnormal Volum",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = ".") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+  mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1)) %>%        # market return for each industry
+  
+  mutate(daily_return = (PX_LAST-PX_OPEN)/PX_OPEN) %>%                    # daily return for each company
+  
+  mutate(CAR1 = c(rep(NA,times = 1), as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
+         -c(rep(NA,times = 1), as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "left")))) %>% 
+  
+  mutate(CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))))
 
 
 # Data formating for regression -------------------------------------------
@@ -165,7 +159,7 @@ stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>%
   mutate(AD = ifelse(date.x == date.y,1,0)) %>% 
   subset(AD ==1) %>% select(-c(date.y, AD, DUP))
 
-colnames(stock_data[3]) <- "date"
+colnames(stock_data)[3] <- "date"
 
 # Simple regression
 ols(formula, stock_data, weights, subset, na.action=na.delete,
@@ -178,8 +172,19 @@ ols(formula, stock_data, weights, subset, na.action=na.delete,
     
     var.penalty=c("simple","sandwich"), ...)
 
+x <- stock_data$daily_return
+y <- stock_data$AV_ODEEN
 slope <- cor(x, y) * (sd(y) / sd(x))
 intercept <- mean(y) - (slope * mean(x))
+
+stock_data %>% 
+  ggplot(aes(x = stock_data$PX_VOLUME, y = stock_data$MR)) +
+  geom_point(colour = "red")
+
+stock_data %>%
+  ggplot(aes(x = sqrt(disp), y = sqrt(mpg))) +
+  geom_point(colour = "red") +
+  geom_smooth(method = "lm", fill = NA)
 
 # Calculating market return
 # - weight each stock by market cap?
@@ -190,11 +195,7 @@ test <- stock_data %>%
   remove_missing() %>% 
   mutate(return = (total_mkt_cap - lag(total_mkt_cap)) / lag(total_mkt_cap)) # lag gives the previous value
 
-
-
-# Plots -------------------------------------------------------------------
-
-
+# Varioua plots -------------------------------------------------------------------
 # Plot of market over time
 test %>% ggplot(.,aes(x=date, y=total_mkt_cap/3435)) + #divide by 3435 to make it look similar to that of OSBX
   ylim(550, 900) +
@@ -210,7 +211,6 @@ test %>% ggplot(.,aes(x=date, y=return)) +
   ggtitle("Market return over time for all stocks listed on OSBX") +
   labs(y = "Return") +
   theme_bw()
-
 
 
 # Graph of trading volume over time
@@ -264,17 +264,33 @@ tot_vol2 <- stock_data %>%
                           include.lowest = TRUE)) %>% 
   merge(.,tot_vol, by = "Security")
 
-# Various plots
-# Calculate volatility ----------------------------------------------------
-stock_data$PX_LAST <- na.locf(stock_data$PX_LAST) # Replace NAs in PX_LAST with previous non NA value, there may be a problem if first value is NA - need to look at this
+stock_data %>% 
+  select(date, AV_ODEEN) %>% 
+  group_by(date) %>% 
+  summarise(av.mean = mean(AV_ODEEN, na.rm = T)) %>%
+  na.omit %>% 
+  
+  ggplot(., aes(x = as.Date(date), y = av.mean)) +
+  geom_line(color = "blue") +
+  labs(title = "Average Abnormal Volum",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = ".") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
-# Plots -------------------------------------------------------------------
-
-
-stock_data$rn <- log(stock_data$PX_LAST/lag(stock_data$PX_LAST))
-
-stock_data <- stock_data[-1,]
-
-stock_data$volatility_calc <- rollmeanr(stock_data$rn, k = 21, fill = NA)
-
-mean(stock_data$rn[2:21])
+# Total abnormal volume by day
+stock_data %>% 
+  select(date, AV_ODEEN) %>% 
+  group_by(date) %>% 
+  summarise(av.sum = sum(AV_ODEEN, na.rm = T)) %>%
+  na.omit %>% 
+  
+  ggplot(., aes(x = as.Date(date), y = av.sum)) +
+  geom_line(color = "blue") +
+  labs(title = "Sum Abnormal Volum",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = ".") +
+  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
