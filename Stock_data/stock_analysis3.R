@@ -103,9 +103,13 @@ stock_data$month <- format(stock_data$date,"%B")
 stock_data$day <- format(stock_data$date,"%A")
 
 # Dummy variable for government announcments
+government_tv <- read_csv("Stock_data/government_tv.csv")[,-1] # Load data 
+
 stock_data$gov <- ifelse(stock_data$date %in% government_tv$date, 1, 0)
 
 # Variable for amount of news
+news_data <- read_csv("Stock_data/news_data.csv")[,-1] # Load data 
+
 news_data_formatted <- news_data %>% 
   select(date, pageviews) %>% 
   mutate(nr_articles = n_distinct(date)) %>% 
@@ -121,21 +125,23 @@ news_data_formatted$news <- cut(news_data_formatted$clicks_article,
 # Create the variable in the main dataframe
 stock_data$news <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
 
-# Variable for amount of corona news
-news_data_formatted <- news_corona %>% 
-  select(date, pageviews) %>% 
-  mutate(nr_articles = n_distinct(date)) %>% 
-  group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
-  mutate(clicks_article = clicks.sum/articles.sum)
-
-news_data_formatted$news <- cut(news_data_formatted$clicks_article,
-                                quantile(news_data_formatted$clicks_article, c(0, .25, .50, .75, 1)),
-                                labels = c("very low", "low", "high", "very high"),
-                                include.lowest = TRUE)
-
-# Create the variable in the main dataframe
-stock_data$news_corona <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
+# Variable for amount of corona news - Not done
+# news_corona <- read_csv("Stock_data/news_corona.csv")
+# 
+# news_data_formatted <- news_corona[,-1] %>% 
+#   select(date, pageviews) %>% 
+#   mutate(nr_articles = n_distinct(date)) %>% 
+#   group_by(date) %>% 
+#   summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
+#   mutate(clicks_article = clicks.sum/articles.sum)
+# 
+# news_data_formatted$news <- cut(news_data_formatted$clicks_article,
+#                                 quantile(news_data_formatted$clicks_article, c(0, .25, .50, .75, 1)),
+#                                 labels = c("very low", "low", "high", "very high"),
+#                                 include.lowest = TRUE)
+# 
+# # Create the variable in the main dataframe
+# stock_data$news_corona <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
 
 # Dummy variable for earnings announcments
 # Loading in data
@@ -160,9 +166,6 @@ stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>%
   subset(AD ==1) %>% select(-c(date.y, AD, DUP))
 
 colnames(stock_data[3]) <- "date"
-
-# Drop rows that don't have earnings reports
-stock_data <- stock_data[stock_data$earnings == 1,]
 
 # Simple regression
 ols(formula, stock_data, weights, subset, na.action=na.delete,

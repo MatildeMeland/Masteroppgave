@@ -77,6 +77,11 @@ sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M whil
 
 news_not_corona <- news_data[!grepl("Covid-19|korona", news_data$subject, ignore.case = T), ]
 
+#write.csv(news_data, file = "Stock_data/news_data.csv")
+#write.csv(news_corona, file = "Stock_data/news_corona.csv")
+#write.csv(news_not_corona, file = "Stock_data/news_not_corona.csv")
+
+
 # Amount of articles ------------------------------------------------------
 # Making a plot of corona articles over time
 table_corona_articles <- as.data.frame(table(news_corona$date))
