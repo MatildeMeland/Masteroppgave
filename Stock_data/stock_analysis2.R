@@ -1,6 +1,7 @@
 # Libraries
 library(readxl)
 library(tidyverse)
+library(lubridate)
 library(zoo)
 
 # Load and format data ----------------------------------------------------
@@ -38,6 +39,55 @@ for (i in unique(stock_data$Security)) {
     }
   }
 }
+
+
+
+# Accounting variables ----------------------------------------------------
+
+acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
+  select(-c(time, PX_TO_BOOK_RATIO, date2, estimated, actual, comparable, date6, period))
+
+acc_vars$date5 <- as.Date(as.numeric(acc_vars$date5), origin = "1899-12-30")
+
+# Remove PX to book ratio? Cant seem to understand why one of them has more missing values than the other. 
+# Remove earning estimates, it has so little data it is useless
+# From my understanding they should have the exact same value?
+
+# An alternative to EQY_INST_SH_OUT is to take the average of each month and use that as values instead? This value rarely changes alot
+# Also need to apply the calculations for all months 
+
+
+test <- acc_vars %>% # select(Security, date) %>% 
+  mutate(month = month(date),
+         year = year(date) )
+
+test2 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>% 
+  mutate(month = month(date3),
+         year = year(date3) ) %>% 
+  group_by(Security, year, month) %>% 
+  summarize(mean_share = mean(EQY_INST_PCT_SH_OUT))
+
+acc_vars <- merge(test,test2, all.x = T)
+
+rm(test, test2)
+ 
+
+# Try to change number of analysts similar to that of IO percentage
+
+test <- acc_vars %>% 
+  mutate(month = month(date),
+         year = year(date) )
+
+test2 <- acc_vars %>% select(Security, date, date5, TOT_ANALYST_REC) %>% 
+  mutate(month = month(date5),
+         year = year(date5) ) %>% 
+  group_by(Security, year, month) %>% 
+  summarize(mean_analyst = mean(TOT_ANALYST_REC))
+
+acc_vars <- merge(test,test2, all.x = T) %>% 
+  select(-c(EQY_INST_PCT_SH_OUT, date3, date5, TOT_ANALYST_REC, date1, date4, month, year ))
+
+rm(test, test2)
 
 
 # Announcement date modification ------------------------------------------
