@@ -35,5 +35,7 @@ ticker_date2$EQY_INST_PCT_SH_OUT <- NA                 # Institutional ownership
 
 
 # Write an Excel file that can be used
-write_xlsx(ticker_date2, path = "bloomberg_test.xlsx", col_names = T)
+write_xlsx(ticker_date2, path = "Stock_data/bloomberg_test.xlsx", col_names = T)
+
+
 
