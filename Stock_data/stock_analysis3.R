@@ -65,7 +65,6 @@ AV_avg <- stock_data %>%
   group_by(date) %>% 
   summarise(av.mean = mean(AV_ODEEN, na.rm = T))
 
-
 stock_data %>% 
   select(date, AV_ODEEN) %>% 
   group_by(date) %>% 
@@ -80,7 +79,6 @@ stock_data %>%
   scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
-
 
 # Total abnormal volume by day
 stock_data %>% 
@@ -105,7 +103,7 @@ stock_data$month <- format(stock_data$date,"%B")
 stock_data$day <- format(stock_data$date,"%A")
 
 # Dummy variable for government announcments
-stock_data$gov <- ifelse(stock_data$date %in% earnings$date, 1, 0)
+stock_data$gov <- ifelse(stock_data$date %in% government_tv$date, 1, 0)
 
 # Variable for amount of news
 news_data_formatted <- news_data %>% 
@@ -122,7 +120,6 @@ news_data_formatted$news <- cut(news_data_formatted$clicks_article,
 
 # Create the variable in the main dataframe
 stock_data$news <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
-
 
 # Variable for amount of corona news
 news_data_formatted <- news_corona %>% 
@@ -141,19 +138,45 @@ news_data_formatted$news <- cut(news_data_formatted$clicks_article,
 stock_data$news_corona <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
 
 # Dummy variable for earnings announcments
+# Loading in data
+earning_data <- read_csv("Stock_data/earning_data.csv") %>% 
+  select(-c(X1,industri, industry))
 
-# Looking at companies that have earnings report on a day with a conference on TV
-# Load in data from Peer_companies -> MasterTest
-high_distraction <- earnings[earnings$date %in% intersect(earnings$date, df2$date),]# Extract the common rows in the dataset
-low_distraction <- earnings[!earnings$date %in% intersect(earnings$date, df2$date),]
-
-high_distraction <- high_distraction[,-2]
+# Create matching tickers
 stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
 
-high_distraction <- merge(high_distraction, stock_data, by=1:2)
-stock_data$news_corona <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
+# Change column names
+colnames(earning_data) <- c("Security", "Name", "date")
 
+# Remove duplicated dates with about 10 days in between
+earning_data <- earning_data %>%
+  group_by(Security) %>% 
+  mutate(DUP = ifelse(abs(difftime(date, lag(date))) <= 10,1,0)) %>% 
+  subset(DUP %in%  0| DUP %in%  NA)
 
+# Creates a dataset with only earnings dates in stock data.
+stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>% 
+  mutate(AD = ifelse(date.x == date.y,1,0)) %>% 
+  subset(AD ==1) %>% select(-c(date.y, AD, DUP))
+
+colnames(stock_data[3]) <- "date"
+
+# Drop rows that don't have earnings reports
+stock_data <- stock_data[stock_data$earnings == 1,]
+
+# Simple regression
+ols(formula, stock_data, weights, subset, na.action=na.delete,
+    
+    method = "qr", model = FALSE,
+    
+    x = FALSE, y = FALSE, se.fit = FALSE, linear.predictors = TRUE,
+    
+    penalty=0, penalty.matrix, tol=1e-7, sigma,
+    
+    var.penalty=c("simple","sandwich"), ...)
+
+slope <- cor(x, y) * (sd(y) / sd(x))
+intercept <- mean(y) - (slope * mean(x))
 
 # Calculating market return
 # - weight each stock by market cap?
