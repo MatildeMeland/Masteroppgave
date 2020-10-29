@@ -349,3 +349,21 @@ news_finance %>%
 
 news_data <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
 news_corona <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
+
+
+# Formatting newsdata for regression 
+news_data_formatted1 <- news_not_corona %>% 
+  select(date, pageviews) %>% 
+  mutate(nr_articles = n_distinct(date)) %>% 
+  group_by(date) %>% 
+  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
+  mutate(clicks_article = clicks.sum/articles.sum)
+
+news_data_formatted2 <- news_corona %>% 
+  select(date, pageviews) %>% 
+  mutate(nr_articles = n_distinct(date)) %>% 
+  group_by(date) %>% 
+  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
+  mutate(clicks_article = clicks.sum/articles.sum)
+
+news_data_formatted <- merge(news_data_formatted1, news_data_formatted2, by=1, all.x = T)
