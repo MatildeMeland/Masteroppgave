@@ -347,9 +347,11 @@ news_finance %>%
 
 # Ecnonometric analysis
 
+
+# Create dataset
 news_data <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
 news_corona <- read.csv("Stock_data/news_corona.csv") %>%  select(-X)
-news_corona <- read.csv("Stock_data/news_not_corona.csv") %>%  select(-X)
+news_not_corona <- read.csv("Stock_data/news_not_corona.csv") %>%  select(-X)
 
 
 # Formatting newsdata for regression 
@@ -364,8 +366,10 @@ news_data_formatted2 <- news_corona %>%
   select(date, pageviews) %>% 
   mutate(nr_articles = n_distinct(date)) %>% 
   group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
+  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>%
   mutate(clicks_article = clicks.sum/articles.sum)
+
+
 
 # Merge corona and not corona data
 news_data_formatted <- merge(news_data_formatted1, news_data_formatted2, by=1, all.x = T)
@@ -386,3 +390,33 @@ news_data_formatted$gov <- ifelse(news_data_formatted$date %in% government_tv$da
 news_data_formatted <- 
   news_data_formatted %>% 
   select(-clicks.sum.x, -articles.sum.x, -clicks.sum.y, -articles.sum.y)
+
+news_data_formatted$clicks_article.y[is.na(news_data_formatted$clicks_article.y)] <- 0
+
+#change of column names
+colnames(news_data_formatted)[2:3] <- c("other_ca", "corona_ca")
+
+
+
+# Linear model and summary statistics
+
+summary(mod1 <- lm(log(1 +other_ca) ~ log(1 + corona_ca) + month + day, data=news_data_formatted))
+
+summary(lm(log(1 +corona_ca) ~ gov + month + day, data=news_data_formatted))
+
+
+# There is autocorrelation
+dwtest(mod1)
+
+# There is heteroskedasticity
+bptest(mod1)
+
+
+# robust standard errors
+se_2 <- coeftest(mod1, vcov=vcovHC(mod1,type="HC0",cluster="group"))
+
+
+# tables showing:
+# - average readership/article for corona and others each month and standard deviation
+# - number of articles 
+# - per day?
