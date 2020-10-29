@@ -366,4 +366,22 @@ news_data_formatted2 <- news_corona %>%
   summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
   mutate(clicks_article = clicks.sum/articles.sum)
 
+# Merge corona and not corona data
 news_data_formatted <- merge(news_data_formatted1, news_data_formatted2, by=1, all.x = T)
+rm(news_data_formatted1, news_data_formatted2)
+
+news_data_formatted$date <- as.Date(news_data_formatted$date) # Make sure it is formated as a date
+
+# Make control variables
+news_data_formatted$month <- format(news_data_formatted$date,"%B")
+news_data_formatted$day <- format(news_data_formatted$date,"%A")
+
+# Make variable for gov announcments
+government_tv <- read_csv("Stock_data/government_tv.csv")[,-1] # Load data 
+
+news_data_formatted$gov <- ifelse(news_data_formatted$date %in% government_tv$date, 1, 0)
+
+# Drop some columns
+news_data_formatted <- 
+  news_data_formatted %>% 
+  select(-clicks.sum.x, -articles.sum.x, -clicks.sum.y, -articles.sum.y)
