@@ -24,10 +24,9 @@ news_data <-
 news_data <-
   news_data %>% 
   select(date, title, pageviews, pageviews_mobile, xl, read_time, read_time_total,
-         sentences_count, subject, url, word_count)
+         sentences_count, subject, url, word_count) %>% 
+  mutate(xl = ifelse(xl == 'XL', 1, 0) ) # Dummy varible for XL articles
 
-# Dummy varible for XL articles
-news_data$xl <- ifelse(news_data$xl == 'XL', 1, 0)
 
 # Remove all articles that doesn't have subject
 news_data <- subset(news_data, !is.na(news_data$subject))
@@ -42,7 +41,7 @@ news_data %>%
   
   ggplot(., aes(x = as.Date(date), y = clicks.sum/(10^6),  )) +
   #geom_bar(stat = "identity", fill = "lightblue") +
-  geom_line(color = "subject") +
+  geom_line() +
   geom_smooth(method = "lm", color = "darkgray") +
   labs(title = "Total Pageviews of All Articles by NRK (MILL)",
        subtitle = "October 2019 - September 2020",
@@ -51,6 +50,7 @@ news_data %>%
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
+# Readtime
 news_data %>% 
   select(date, read_time_total) %>% 
   group_by(date) %>% 
@@ -68,8 +68,6 @@ news_data %>%
 
 
 # Format Corona data ------------------------------------------------------
-# Creates a new subset of all articles with only subject is corona
-corona_only_news <- subset(news_data, subject == "Nytt koronavirus (Covid-19)")
 
 # Creates a new subset of all corona articles 
 news_corona <- news_data[grep("Covid-19|korona", news_data$subject, ignore.case = T), ]
@@ -99,6 +97,10 @@ ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 
+
+
+
+
 # Clicks of corona articles -----------------------------------------------
 # Making a plot of clicks of corona articles over time
 
@@ -108,7 +110,7 @@ ggplot(news_corona, aes(x = date, y = pageviews)) +
 # Top read time articles
 news_corona %>% 
   select(title, as.numeric(pageviews)) %>% 
-  sort(pageviews, decreasing = T) # Får ikke denne til å funke plutselig
+  sort(pageviews, decreasing = T) # F?r ikke denne til ? funke plutselig
 
 # Plotting total pageviews per day of all articles
 news_corona %>% 
@@ -124,6 +126,12 @@ news_corona %>%
   scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+
+
+
+
+
 
 
 # Comparing corona articles to all articles -------------------------------
@@ -166,6 +174,7 @@ ggplot(data = news_plot_table, aes(x = as.Date(date), y = clicks_sum/10^6, color
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
+
 # PERCENT of articles that were related to corona on a day 
 ## THIS IS NOT DONE
 
@@ -187,6 +196,11 @@ ggplot(news_plot_table, mapping = aes(x = as.Date(date), y = clicks_sum, fill = 
     scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+
+
+
+
 
 # Readtime of corona articles ---------------------------------------------
 # Making a plot of reading time of corona articles over time
@@ -233,6 +247,9 @@ ggplot(data = table_corona_time_noxl, aes(x = date, y = time.sum)) +
   theme(axis.text.x = element_text(angle = 60, hjust = 1)) # Pretty much no difference - don't think we need to do this
 
 
+
+
+
 # Analzing the different subjects -----------------------------------------
 subjects <- strsplit(news_data$subject, split = ";") %>% 
   unlist() %>% 
@@ -247,15 +264,18 @@ table(subjects_all) %>%
 table_sub <- as.data.frame(table(subjects_all))
 
 
+
+
+
 # Formating finance news --------------------------------------------------
 # Piciking finance subjects
 test_finance <- news_data[grep("politikk", news_data$subject, ignore.case = T), ] # Change subject to investegate what articles are in it
 test_finance[sample(nrow(test_finance), 20), 1:2]
 
-# Mest relevat er økonomi, Equinor, olje og gass, teknologi og data, 
-# Litt mer usikker på temaene politikk, Donald Trump, USA osv.
+# Mest relevat er ?konomi, Equinor, olje og gass, teknologi og data, 
+# Litt mer usikker p? temaene politikk, Donald Trump, USA osv.
 # Subsetting with all chosen finance subjects
-news_finance <- news_data[grep("økonomi|trump|teknologi|energi|reiseliv|olje|equinor|fiskeri|næringsliv", news_data$subject, ignore.case = T), ]
+news_finance <- news_data[grep("?konomi|trump|teknologi|energi|reiseliv|olje|equinor|fiskeri|n?ringsliv", news_data$subject, ignore.case = T), ]
 
 #news_finance <- news_finance[grep("", news_data$full_text, ignore.case = T), ] # When we add full text we can add words that have to be included
 #news_finance <- news_finance[-grep("", news_data$full_text, ignore.case = T), ] # Words we want to exclue - maybe we want to remove articles which mentions corona 5 or more times or something?
@@ -266,6 +286,9 @@ news_finance[sample(nrow(news_finance), 20), 1:2]
 # Making a plot of corona articles over time
 table_finance <- as.data.frame(table(news_finance$date))
 table_finance$Var1 <- as.Date(table_finance$Var1)
+
+
+
 
 # Plotting finance articles -----------------------------------------------
 # Number of finance articles by day
@@ -281,7 +304,7 @@ ggplot(data = table_finance, aes(x = Var1, y = Freq)) +
 # Clicks on finance articles
 ggplot(news_finance, aes(x = date, y = pageviews)) + 
   geom_point() # Remove outliers?
-# "Spørsmål og svar om koronautbruddet" - This article has insane hits, think we should remove
+# "Sp?rsm?l og svar om koronautbruddet" - This article has insane hits, think we should remove
 
 # Total number of pageviews by day of finance news
 news_finance %>% 
@@ -318,3 +341,7 @@ news_finance %>%
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 
+# Ecnonometric analysis
+
+news_data <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
+news_corona <- read.csv("Stock_data/news_data.csv") %>%  select(-X)

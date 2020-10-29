@@ -169,6 +169,46 @@ stock_data <- stock_data %>%
 
 
 
+
+
+
+
+# Econometrics ------------------------------------------------------------
+
+# multipple regression using news and gov as explanatory variables. Alsp includes control variables
+lm.fit=lm(AV_ODEEN~gov+ news + day + month + mean_share + mean_analyst + CUR_MKT_CAP + industry ,data=stock_data)
+
+summary(lm.fit)
+#   - Not any intresting results, need to adjust for heteroskedasticity.
+#   - Stadardize all variables by substracting the mean and dividing by the standard deviation for all variables?
+#   - Univariate vs multivariate?
+#   - Compare CAR40 and CAR1 (post earnings announcement drift) to the most extreme and least extreme.
+
+
+
+summary(lm(news~day+month+gov, data=stock_data)) 
+#   - news is a dummy-variable with more than two levels.
+#   - this is similar to that of hirshleifer that tests if rank (10 levels) is affected by control variables.
+#   - maybe convert readership to a continius variable instead?
+#   - look further into this later.
+
+
+library(lmtest)
+
+waldtest(lm.fit) # can test for heteroskedacity?
+
+# comparing two groups
+
+
+
+
+
+
+
+
+
+
+
 # Plots -------------------------------------------------------------------
 
 
