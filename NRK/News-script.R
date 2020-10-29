@@ -348,7 +348,8 @@ news_finance %>%
 # Ecnonometric analysis
 
 news_data <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
-news_corona <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
+news_corona <- read.csv("Stock_data/news_corona.csv") %>%  select(-X)
+news_corona <- read.csv("Stock_data/news_not_corona.csv") %>%  select(-X)
 
 
 # Formatting newsdata for regression 
