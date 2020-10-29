@@ -218,30 +218,19 @@ stock_data$mean_analyst[is.na(stock_data_test$mean_analyst)] <- 0
 summary(stock_data) # Nice overview of the dataset
 
 
-# Simple regression
-ols(formula, stock_data, weights, subset, na.action=na.delete,
-    
-    method = "qr", model = FALSE,
-    
-    x = FALSE, y = FALSE, se.fit = FALSE, linear.predictors = TRUE,
-    
-    penalty=0, penalty.matrix, tol=1e-7, sigma,
-    
-    var.penalty=c("simple","sandwich"), ...)
+# Simple regression for
+# Load news data 
+news_data <- read_csv("Stock_data/news_data.csv")[,-1]
+news_data_corona <- read_csv("Stock_data/news_data.csv")[,-1]
+news_data$corona <- ifelse(grepl("Covid-19|korona", news_data$subject, ignore.case = T) == T, 1, 0)
 
-x <- stock_data$daily_return
-y <- stock_data$AV_ODEEN
-slope <- cor(x, y) * (sd(y) / sd(x))
-intercept <- mean(y) - (slope * mean(x))
+news_corona <- news_data[grepl("Covid-19|korona", news_data$subject, ignore.case = T), ]
 
-stock_data %>% 
-  ggplot(aes(x = stock_data$PX_VOLUME, y = stock_data$MR)) +
-  geom_point(colour = "red")
+summary(reg <- rlm(crime ~ poverty + single, data=cdata, psi = psi.bisquare))
 
-stock_data %>%
-  ggplot(aes(x = sqrt(disp), y = sqrt(mpg))) +
-  geom_point(colour = "red") +
-  geom_smooth(method = "lm", fill = NA)
+
+grepl("Covid-19|korona", news_data$subject[43], ignore.case = T) == T
+sum()
 
 # Calculating market return
 # - weight each stock by market cap?
