@@ -96,6 +96,10 @@ ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
+d <- news_corona$date
+d <- as.Date(d)
+date_range <- seq(min(d), max(d), by = 1) 
+date_range[!date_range %in% d] 
 
 
 

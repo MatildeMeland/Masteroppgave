@@ -215,6 +215,8 @@ stock_data <- merge(stock_data[,-2], acc_vars, by = 1:2)
 
 stock_data$mean_analyst[is.na(stock_data_test$mean_analyst)] <- 0
 
+summary(stock_data) # Nice overview of the dataset
+
 
 # Simple regression
 ols(formula, stock_data, weights, subset, na.action=na.delete,
