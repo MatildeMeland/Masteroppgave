@@ -1,0 +1,67 @@
+
+Descriptive statistics
+==============================================
+                       Dependent variable:    
+                   ---------------------------
+                                              
+----------------------------------------------
+log(1 + corona_ca)          -0.01***          
+                             (0.005)          
+                                              
+monthaugust                  0.2***           
+                              (0.1)           
+                                              
+monthdesember                 -0.1            
+                              (0.1)           
+                                              
+monthfebruar                   0.1            
+                              (0.1)           
+                                              
+monthjanuar                    0.1            
+                              (0.1)           
+                                              
+monthjuli                    0.3***           
+                              (0.1)           
+                                              
+monthjuni                     -0.1            
+                              (0.1)           
+                                              
+monthmai                      -0.01           
+                              (0.1)           
+                                              
+monthmars                     0.05            
+                              (0.1)           
+                                              
+monthnovember                 -0.1*           
+                              (0.1)           
+                                              
+monthoktober                 -0.2***          
+                              (0.1)           
+                                              
+monthseptember                0.1**           
+                              (0.1)           
+                                              
+daylørdag                    0.4***           
+                             (0.04)           
+                                              
+daymandag                     0.1*            
+                             (0.04)           
+                                              
+dayonsdag                     -0.01           
+                             (0.04)           
+                                              
+daysøndag                    0.3***           
+                             (0.04)           
+                                              
+daytirsdag                    0.05            
+                             (0.04)           
+                                              
+daytorsdag                    0.05            
+                             (0.04)           
+                                              
+Constant                     10.9***          
+                              (0.1)           
+                                              
+==============================================
+==============================================
+Note:              *p<0.1; **p<0.05; ***p<0.01
