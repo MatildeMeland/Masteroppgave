@@ -419,4 +419,12 @@ se_2 <- coeftest(mod1, vcov=vcovHC(mod1,type="HC0",cluster="group"))
 # tables showing:
 # - average readership/article for corona and others each month and standard deviation
 # - number of articles 
-# - per day?
+# - average percentage readership in different weekdays
+# - per day
+
+news_data_formatted %>% group_by(month) %>% summarise(sum_other = sum(other_ca),
+                                                      sum_corona = sum(corona_ca),
+                                                      sd_other = sd(other_ca),
+                                                      sd_corona = sd(corona_ca))
+
+summary(news_data_formatted)
