@@ -4,7 +4,7 @@ library(tidyverse)
 library(zoo)
 library(lubridate)
 
-# Load and format data ----------------------------------------------------
+# Load and format stock data ----------------------------------------------------
 stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
 
 # Fix problem with mismatching dates
@@ -40,10 +40,16 @@ for (i in unique(stock_data$Security)) {
   }
 }
 
-# Calculate abnormal returns ----------------------------------------------
+# Import dataset with industry specifications
 
-# Calculate return 
-stock_data$daily_return <- (stock_data$PX_LAST-stock_data$PX_OPEN)/stock_data$PX_OPEN
+Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx") # list of companies with industry specification
+
+colnames(Ticker_list)[5] <- "Security" 
+
+stock_data <- merge(stock_data, Ticker_list, by = "Security") %>%  # merge with stock data
+  select(-c(ticker, name, industri))
+
+rm(Ticker_list)
 
 
 # Calculate abnormal volume -----------------------------------------------
@@ -62,15 +68,11 @@ rm(i, j, x, z)
 
 # Cumulative abnormal return ----------------------------------------------
 
+# Calculate daily return 
+stock_data$daily_return <- (stock_data$PX_LAST-stock_data$PX_OPEN)/stock_data$PX_OPEN
+
 # Calculating market return for each company in each industry
-# - Import dataset with industry specifications
 
-Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx")
-
-colnames(Ticker_list)[5] <- "Security"
-
-stock_data <- merge(stock_data, Ticker_list, by = "Security") %>% 
-  select(-c(ticker, name, industri))
 
 # Create a value for total market cap for each industry and market return for each security.
 # Further use these values to calculate cumulative abnormal return
@@ -92,7 +94,8 @@ stock_data <- stock_data %>%
          -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))))
 
 
-# Data formating for regression -------------------------------------------
+# Creating control variables -------------------------------------------
+
 # Varaible for month & day
 stock_data$month <- format(stock_data$date,"%B")
 stock_data$day <- format(stock_data$date,"%A")
@@ -102,10 +105,12 @@ government_tv <- read_csv("Stock_data/government_tv.csv")[,-1] # Load data
 
 stock_data$gov <- ifelse(stock_data$date %in% government_tv$date, 1, 0)
 
-# Variable for amount of news
-news_data <- read_csv("Stock_data/news_data.csv")[,-1] # Load data 
+rm(government_tv) # remove government_tv dataset
 
-news_data_formatted <- news_data %>% 
+# Variable for amount of corona news
+news_data <- read_csv("Stock_data/news_corona.csv")[,-1] # Load data 
+
+news_data <- news_data %>% 
   select(date, pageviews) %>% 
   mutate(nr_articles = n_distinct(date)) %>% 
   group_by(date) %>% 
@@ -120,23 +125,6 @@ news_data_formatted$news <- cut(news_data_formatted$clicks_article,
 # Create the variable in the main dataframe
 stock_data$news <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
 
-# Variable for amount of corona news - Not done
-# news_corona <- read_csv("Stock_data/news_corona.csv")
-# 
-# news_data_formatted <- news_corona[,-1] %>% 
-#   select(date, pageviews) %>% 
-#   mutate(nr_articles = n_distinct(date)) %>% 
-#   group_by(date) %>% 
-#   summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
-#   mutate(clicks_article = clicks.sum/articles.sum)
-# 
-# news_data_formatted$news <- cut(news_data_formatted$clicks_article,
-#                                 quantile(news_data_formatted$clicks_article, c(0, .25, .50, .75, 1)),
-#                                 labels = c("very low", "low", "high", "very high"),
-#                                 include.lowest = TRUE)
-# 
-# # Create the variable in the main dataframe
-# stock_data$news_corona <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
 
 # Dummy variable for earnings announcments
 # Loading in data
@@ -218,7 +206,10 @@ stock_data$mean_analyst[is.na(stock_data_test$mean_analyst)] <- 0
 summary(stock_data) # Nice overview of the dataset
 
 
-# Simple regression for
+# Regression analysis -----------------------------------------------------
+
+
+# Simple regression 
 # Load news data 
 news_data <- read_csv("Stock_data/news_data.csv")[,-1]
 news_data_corona <- read_csv("Stock_data/news_data.csv")[,-1]
@@ -226,11 +217,34 @@ news_data$corona <- ifelse(grepl("Covid-19|korona", news_data$subject, ignore.ca
 
 news_corona <- news_data[grepl("Covid-19|korona", news_data$subject, ignore.case = T), ]
 
-summary(reg <- rlm(crime ~ poverty + single, data=cdata, psi = psi.bisquare))
-
 
 grepl("Covid-19|korona", news_data$subject[43], ignore.case = T) == T
 sum()
+
+# multipple regression using news and gov as explanatory variables. Alsp includes control variables
+lm.fit=lm(AV_ODEEN~gov+ news + day + month + mean_share + mean_analyst + CUR_MKT_CAP + industry ,data=stock_data)
+
+summary(lm.fit)
+#   - Not any intresting results, need to adjust for heteroskedasticity.
+#   - Stadardize all variables by substracting the mean and dividing by the standard deviation for all variables?
+#   - Univariate vs multivariate?
+#   - Compare CAR40 and CAR1 (post earnings announcement drift) to the most extreme and least extreme.
+
+
+
+summary(lm(news~day+month+gov, data=stock_data)) 
+#   - news is a dummy-variable with more than two levels.
+#   - this is similar to that of hirshleifer that tests if rank (10 levels) is affected by control variables.
+#   - maybe convert readership to a continius variable instead?
+#   - look further into this later.
+
+
+library(lmtest)
+
+waldtest(lm.fit) # can test for heteroskedacity?
+
+# comparing two groups
+
 
 # Calculating market return
 # - weight each stock by market cap?

@@ -428,3 +428,33 @@ news_data_formatted %>% group_by(month) %>% summarise(sum_other = sum(other_ca),
                                                       sd_corona = sd(corona_ca))
 
 summary(news_data_formatted)
+
+
+
+
+
+
+
+
+# Leftover code removed from stock_analysis3 ------------------------------
+
+# Variable for amount of corona news - Not done
+# news_corona <- read_csv("Stock_data/news_corona.csv")
+# 
+# news_data_formatted <- news_corona[,-1] %>% 
+#   select(date, pageviews) %>% 
+#   mutate(nr_articles = n_distinct(date)) %>% 
+#   group_by(date) %>% 
+#   summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
+#   mutate(clicks_article = clicks.sum/articles.sum)
+# 
+# news_data_formatted$news <- cut(news_data_formatted$clicks_article,
+#                                 quantile(news_data_formatted$clicks_article, c(0, .25, .50, .75, 1)),
+#                                 labels = c("very low", "low", "high", "very high"),
+#                                 include.lowest = TRUE)
+# 
+# # Create the variable in the main dataframe
+# stock_data$news_corona <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
+
+
+
