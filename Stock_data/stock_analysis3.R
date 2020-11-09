@@ -40,8 +40,7 @@ for (i in unique(stock_data$Security)) {
   }
 }
 
-# Import dataset with industry specifications
-
+# Create a column with industry specifications
 Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx") # list of companies with industry specification
 
 colnames(Ticker_list)[5] <- "Security" 
@@ -67,12 +66,6 @@ for (i in unique(stock_data$Security)) {
 rm(i, j, x, z)
 
 # Cumulative abnormal return ----------------------------------------------
-
-# Calculate daily return 
-stock_data$daily_return <- (stock_data$PX_LAST-stock_data$PX_OPEN)/stock_data$PX_OPEN
-
-# Calculating market return for each company in each industry
-
 
 # Create a value for total market cap for each industry and market return for each security.
 # Further use these values to calculate cumulative abnormal return
@@ -110,7 +103,7 @@ rm(government_tv) # remove government_tv dataset
 # Variable for amount of corona news
 news_data <- read_csv("Stock_data/news_corona.csv")[,-1] # Load data 
 
-news_data <- news_data %>% 
+news_data_formatted <- news_data %>% 
   select(date, pageviews) %>% 
   mutate(nr_articles = n_distinct(date)) %>% 
   group_by(date) %>% 
@@ -125,8 +118,9 @@ news_data_formatted$news <- cut(news_data_formatted$clicks_article,
 # Create the variable in the main dataframe
 stock_data$news <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
 
+rm(news_data, news_data_formatted)
 
-# Dummy variable for earnings announcments
+# Dummy variable for earnings announcments and industy
 # Loading in data
 earning_data <- read_csv("Stock_data/earning_data.csv") %>% 
   select(-c(X1,industri, industry))
@@ -150,8 +144,18 @@ stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>%
 
 colnames(stock_data)[3] <- "date"
 
+
+
 # Accounting variables ----------------------------------------------------
 
+
+# Earnings surprise
+acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
+  select(Security, period, date6, estimated, actual, comparable) %>% filter(
+    estimated != "#N/A N/A" & actual != "#N/A N/A" & year(date6) > 2018)
+
+
+# Control variables
 acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
   select(-c(time, PX_TO_BOOK_RATIO, date2, estimated, actual, comparable, date6, period))
 
@@ -255,7 +259,7 @@ test <- stock_data %>%
   remove_missing() %>% 
   mutate(return = (total_mkt_cap - lag(total_mkt_cap)) / lag(total_mkt_cap)) # lag gives the previous value
 
-# Varioua plots -------------------------------------------------------------------
+# Various plots -------------------------------------------------------------------
 # Plot of market over time
 test %>% ggplot(.,aes(x=date, y=total_mkt_cap/3435)) + #divide by 3435 to make it look similar to that of OSBX
   ylim(550, 900) +
