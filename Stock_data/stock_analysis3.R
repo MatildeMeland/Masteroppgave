@@ -149,71 +149,81 @@ colnames(stock_data)[3] <- "date"
 # Accounting variables ----------------------------------------------------
 
 
-# Earnings surprise
+
+# Create dataframe for accounting variables:
+# remove some unneccesary variables as well as PX_TO_BOOK as Book to market had more obs.
 acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
-  select(Security, period, date6, estimated, actual, comparable) %>% filter(
-    estimated != "#N/A N/A" & actual != "#N/A N/A" & year(date6) > 2018)
-
-
-colnames(acc_vars)[3] <- "date"
-acc_vars$date <- as.Date(acc_vars$date)
+  select(-c(date1, time, PX_TO_BOOK_RATIO, date2, comparable, period))
 
 acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
-test2 <- merge(acc_vars[,-c(2,6)], earning_data[-c(2,4)], by = 1:2 , all = F)
-test3 <- merge(test2, stock_data, by = c("Security", "date"))
+acc_vars$date <- as.Date(acc_vars$date)
+acc_vars$date5 <- as.Date(as.numeric(acc_vars$date5), origin = "1899-12-30") 
 
+# Earnings surprise
+# Create temporary datasets with values of interest that are later merged togheter
+# The same logic is used for the other variables as well
+temp1 <- acc_vars%>% 
+  select(Security, date6, estimated, actual, MARKET_CAPITALIZATION_TO_BV) %>% # add book to market
+  filter(estimated != "#N/A N/A" & actual != "#N/A N/A" & year(date6) > 2018)
 
-# Control variables
-acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
-  select(-c(time, PX_TO_BOOK_RATIO, date2, estimated, actual, comparable, date6, period))
+colnames(temp1)[2] <- "date"
 
-acc_vars$date5 <- as.Date(as.numeric(acc_vars$date5), origin = "1899-12-30")
+temp2 <- merge(temp1, earning_data[-c(2,4)], by = 1:2 , all = F)
+stock_data1 <- merge(temp2, stock_data, by = c("Security", "date"))%>% 
+  mutate_at(c("actual","estimated"),as.numeric) # need to make values numeric
 
-# Remove PX to book ratio? Cant seem to understand why one of them has more missing values than the other. 
-# Remove earning estimates, it has so little data it is useless
-# From my understanding they should have the exact same value?
+rm(temp1,temp2)
 
-# An alternative to EQY_INST_SH_OUT is to take the average of each month and use that as values instead? This value rarely changes alot
-# Also need to apply the calculations for all months 
+# Calulating earnings surprise
+# Normalise by using price 5 days before earnings announcement, fix later
 
+stock_data1$ES <- (stock_data1$actual - stock_data1$estimated)/stock_data1$PX_LAST
 
-test <- acc_vars %>% # select(Security, date) %>% 
+# Calculate quantiles
+stock_data1$ES_quantile <- cut(stock_data1$ES,
+                                quantile(stock_data1$ES, c(0,.10,.20,.30,.40,.50,.60,.70,.80,.90,1)),
+                                labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"),
+                                include.lowest = TRUE)
+
+# Mean percentage of institutional ownership (IO) in a given month
+temp1 <- acc_vars %>% select(Security, date) %>% 
   mutate(month = month(date),
          year = year(date) )
 
-test2 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>% 
+temp2 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>% 
   mutate(month = month(date3),
          year = year(date3) ) %>% 
   group_by(Security, year, month) %>% 
-  summarize(mean_share = mean(EQY_INST_PCT_SH_OUT))
+  summarize(mean_IO_share = mean(EQY_INST_PCT_SH_OUT))
 
-acc_vars <- merge(test,test2, all.x = T)
+temp3 <- merge(temp1,temp2, all.x = T) %>% select(-c("year", "month"))
 
-rm(test, test2)
+stock_data1 <- merge(temp3, stock_data1, by = c("Security", "date"))
+
+rm(temp1, temp2, temp3)
 
 
-# Try to change number of analysts similar to that of IO percentage
+# Mean number of analysts in a given month
 
-test <- acc_vars %>% 
+temp1 <- acc_vars %>% select(Security, date) %>% 
   mutate(month = month(date),
          year = year(date) )
 
-test2 <- acc_vars %>% select(Security, date, date5, TOT_ANALYST_REC) %>% 
+temp2 <- acc_vars %>% select(Security, date, date5, TOT_ANALYST_REC) %>% 
   mutate(month = month(date5),
          year = year(date5) ) %>% 
   group_by(Security, year, month) %>% 
   summarize(mean_analyst = mean(TOT_ANALYST_REC))
 
-acc_vars <- merge(test,test2, all.x = T) %>% 
-  select(-c(EQY_INST_PCT_SH_OUT, date3, date5, TOT_ANALYST_REC, date1, date4, month, year ))
+temp3 <- merge(temp1,temp2, all.x = T) %>% select(-c(month, year))
 
-rm(test, test2)
+stock_data1 <- merge(temp3, stock_data1, by = c("Security", "date"))
 
-acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
+rm(temp1, temp2, temp3)
 
-stock_data <- merge(stock_data[,-2], acc_vars, by = 1:2)
+# Change NA values in mean_analyst to 0
+stock_data1$mean_analyst[is.na(stock_data1$mean_analyst)] <- 0
 
-stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
 
 summary(stock_data) # Nice overview of the dataset
 
@@ -258,14 +268,7 @@ waldtest(lm.fit) # can test for heteroskedacity?
 # comparing two groups
 
 
-# Calculating market return
-# - weight each stock by market cap?
-# - return of each stock
-test <- stock_data %>% 
-  group_by(date) %>%
-  summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>%
-  remove_missing() %>% 
-  mutate(return = (total_mkt_cap - lag(total_mkt_cap)) / lag(total_mkt_cap)) # lag gives the previous value
+
 
 # Various plots -------------------------------------------------------------------
 # Plot of market over time
