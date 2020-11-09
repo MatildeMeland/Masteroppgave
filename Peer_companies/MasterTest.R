@@ -47,9 +47,10 @@ data_dup <- read_csv("Peer_companies/earning_data.csv") %>%
 
 # Reformat the date
 data_dup$date <- gsub("T.+","",data_dup$date)   # remove minutes from date
-
-
 data_dup$date <- format(strptime(as.character(data_dup$date), "%Y-%m-%d"), "%d.%m.%Y") # change format
+
+data_dup$ticker <- gsub("-", "", data_dup$ticker)
+
 
 # Remove duplicats
 
@@ -73,8 +74,6 @@ rm(data_dup) # Don't need this anymore
 earnings$date <- earnings$date %>% as.Date(., format = "%d.%m.%Y")
 
 write.csv(earnings, file = "Stock_data/earning_data.csv")
-
-
 
 
 
