@@ -159,7 +159,8 @@ colnames(acc_vars)[3] <- "date"
 acc_vars$date <- as.Date(acc_vars$date)
 
 acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
-test2 <- merge(acc_vars[,-2], earning_data[-2], by = 1:2 , all = F)
+test2 <- merge(acc_vars[,-c(2,6)], earning_data[-c(2,4)], by = 1:2 , all = F)
+test3 <- merge(test2, stock_data, by = c("Security", "date"))
 
 
 # Control variables
@@ -212,7 +213,7 @@ acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
 
 stock_data <- merge(stock_data[,-2], acc_vars, by = 1:2)
 
-stock_data$mean_analyst[is.na(stock_data_test$mean_analyst)] <- 0
+stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
 
 summary(stock_data) # Nice overview of the dataset
 
