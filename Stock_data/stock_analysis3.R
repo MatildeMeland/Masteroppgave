@@ -122,7 +122,7 @@ rm(news_data, news_data_formatted)
 
 # Dummy variable for earnings announcments and industy
 # Loading in data
-earning_d <- read_csv("Stock_data/earning_data.csv") %>% 
+earning_data <- read_csv("Stock_data/earning_data.csv") %>% 
   select(-c(X1,industri, industry))
 
 # Create matching tickers
