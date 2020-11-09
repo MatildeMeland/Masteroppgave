@@ -144,7 +144,7 @@ stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>%
 
 colnames(stock_data)[3] <- "date"
 
-
+# The reson 4 observations are removed is because of holidays or no stock information
 
 # Accounting variables ----------------------------------------------------
 
@@ -153,6 +153,13 @@ colnames(stock_data)[3] <- "date"
 acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
   select(Security, period, date6, estimated, actual, comparable) %>% filter(
     estimated != "#N/A N/A" & actual != "#N/A N/A" & year(date6) > 2018)
+
+
+colnames(acc_vars)[3] <- "date"
+acc_vars$date <- as.Date(acc_vars$date)
+
+acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
+test2 <- merge(acc_vars[,-2], earning_data[-2], by = 1:2 , all = F)
 
 
 # Control variables
