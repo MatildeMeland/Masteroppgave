@@ -270,6 +270,67 @@ stock_data %>% select(actual, )
 # Regression analysis -----------------------------------------------------
 
 
+df <- stock_data1 %>% 
+  select(news_t, ES, CUR_MKT_CAP, MARKET_CAPITALIZATION_TO_BV, mean_analyst, mean_IO_share) %>% 
+  group_by(news_t) %>% 
+  summarize(ES = mean(ES),
+            mkt_cap = mean(CUR_MKT_CAP, na.rm = T),
+            M_B = mean(MARKET_CAPITALIZATION_TO_BV, na.rm = T),
+            analyst = mean(mean_analyst),
+            IO_share = mean(mean_IO_share))
+# for some reason the security SOFF has an earnings surprise of 514. There has to be some kind of dataerror here.
+# the real value of EPS from their report is -3,5 no -1001. 
+
+# need a value of share turnover in a given period leading up to the earnings announcement
+
+# Run linear regression on only the top category
+# Logit model for only top news group, need dummy variable for this 
+stock_data1$TOP_N <- ifelse(stock_data1$news_t == "N10", 1, 0)
+
+glm.fits=glm(TOP_N ~ ES+ CUR_MKT_CAP + MARKET_CAPITALIZATION_TO_BV + mean_analyst + mean_IO_share,
+             data=stock_data1,family=binomial)
+
+summary(glm.fits)
+# No variables are correlated with wheter they publish on a high news day or not, which makes sense
+
+
+# Multinominal Logistic regression since dependent variable is a categorical variable.
+lm.fit=lm(news_t ~ ES+ CUR_MKT_CAP + MARKET_CAPITALIZATION_TO_BV + mean_analyst + mean_IO_share, data=stock_data1)
+summary(lm.fit)
+
+
+df <- stock_data1 %>% 
+  select(news_t, ES, ES_quantile, CAR1, CAR40) %>% 
+  group_by(news_t) %>% 
+  summarize(ES = mean(ES)*100,
+            car1 = mean(CAR1)*100,
+            car40 = mean(CAR40, na.rm = T)*100)
+
+# CAR = FE10 +NRANK10 + FE10*NRANK10
+
+lm.fit <- stock_data1 %>% 
+  select(news_t, ES, ES_quantile, CAR1, CAR40) %>% 
+  mutate(N10 = ifelse(stock_data1$news_t == "N10", 1, 0),
+         Q10 = ifelse(stock_data1$ES_quantile == "Q10", 1, 0)) %>% 
+  lm(CAR1 ~ Q10 + N10 + Q10*N10, data=.)
+
+summary(lm.fit)
+
+# Robust standard errors
+library(lmtest)
+library(sandwich)
+
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+
+
+# Maybe it is easier to only focus on the top news group, and use similar method to DV
+# Make quantile based on wheter they are positive or negative?
+# - top 3 is positive, bottom 3 negative etc..
+
+
+
+
 # Simple regression 
 # Load news data 
 news_data <- read_csv("Stock_data/news_data.csv")[,-1]
