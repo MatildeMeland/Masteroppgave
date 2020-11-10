@@ -7,6 +7,8 @@ library(lubridate)
 # Load and format stock data ----------------------------------------------------
 stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
 
+set.seed(123) # For reproducible results 
+
 # Fix problem with mismatching dates
 stock_data <- 
   merge(stock_data[,-2], stock_data[,1:2], by=1:2, all.y = T) %>% 
@@ -110,15 +112,36 @@ news_data_formatted <- news_data %>%
   summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
   mutate(clicks_article = clicks.sum/articles.sum)
 
-news_data_formatted$news <- cut(news_data_formatted$clicks_article,
-                                quantile(news_data_formatted$clicks_article, c(0, .25, .50, .75, 1)),
-                                labels = c("very low", "low", "high", "very high"),
-                                include.lowest = TRUE)
+
 
 # Create the variable in the main dataframe
-stock_data$news <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
+stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.Date(news_data_formatted$date))]
+
+stock_data$news_q <- cut(stock_data$news,
+                         quantile(stock_data$news, c(0,.10,.20,.30,.40,.50,.60,.70,.80,.90,1), na.rm = T),
+                         labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"),
+                         include.lowest = TRUE)
+
+stock_data$news_t <- cut(stock_data$news, 
+                         breaks = quantile(stock_data$news, seq(0, 1, l=11), na.rm = T, type = 5),
+                         labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"),
+                         include.lowest = TRUE)
+
+summary(stock_data$news_t)
 
 rm(news_data, news_data_formatted)
+
+# TEst
+test <- seq(0,100, l = 500) %>% as.data.frame()
+test <- sample(seq(0,100, l = 500), 50) %>% as.data.frame()
+
+colnames(test)[1] <- "num"
+test$q <- cut(test$num, 
+              breaks = quantile(test$num, seq(0, 1, l=11), na.rm = T, type = 9),
+              labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"),
+              include.lowest = TRUE)
+
+summary(test$q)
 
 # Dummy variable for earnings announcments and industy
 # Loading in data
@@ -147,8 +170,6 @@ colnames(stock_data)[3] <- "date"
 # The reson 4 observations are removed is because of holidays or no stock information
 
 # Accounting variables ----------------------------------------------------
-
-
 
 # Create dataframe for accounting variables:
 # remove some unneccesary variables as well as PX_TO_BOOK as Book to market had more obs.
@@ -226,7 +247,7 @@ stock_data1$mean_analyst[is.na(stock_data1$mean_analyst)] <- 0
 
 
 summary(stock_data) # Nice overview of the dataset
-
+summary(stock_data$news_q)
 
 # Regression analysis -----------------------------------------------------
 
