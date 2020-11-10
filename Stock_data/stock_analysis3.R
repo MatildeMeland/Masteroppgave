@@ -112,10 +112,11 @@ news_data_formatted <- news_data %>%
   summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
   mutate(clicks_article = clicks.sum/articles.sum)
 
-
+# Remove non-trading dates (should we do this?) 
+news_data_formatted <- news_data_formatted[news_data_formatted$date %in% unique(stock_data$date),]
+stock_data$date %>% unique()
 
 # Create the variable in the main dataframe
-stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.Date(news_data_formatted$date))]
 
 stock_data$news_t <- cut(stock_data$news, 
                          breaks = quantile(stock_data$news, seq(0, 1, l=11), na.rm = T, type = 7),
@@ -124,19 +125,10 @@ stock_data$news_t <- cut(stock_data$news,
 
 summary(stock_data$news_t)
 
+stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.Date(news_data_formatted$date))]
+
+
 rm(news_data, news_data_formatted)
-
-# TEst
-test <- seq(0,100, l = 500) %>% as.data.frame()
-test <- sample(seq(0,100, l = 500), 50) %>% as.data.frame()
-
-colnames(test)[1] <- "num"
-test$q <- cut(test$num, 
-              breaks = quantile(test$num, seq(0, 1, l=11), na.rm = T, type = 9),
-              labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"),
-              include.lowest = TRUE)
-
-summary(test$q)
 
 # Dummy variable for earnings announcments and industy
 # Loading in data
