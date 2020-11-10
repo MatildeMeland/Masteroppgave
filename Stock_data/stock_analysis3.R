@@ -115,15 +115,22 @@ news_data_formatted <- news_data %>%
 stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.Date(news_data_formatted$date))]
 
 # Create the variable in the main dataframe
+stock_data$news[is.na(stock_data$news)] <- 0
 
-stock_data$news_t <- cut(stock_data$news, 
-                         breaks = quantile(stock_data$news, seq(0, 1, l=11), na.rm = T, type = 7),
-                         labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"),
+stock_data <- stock_data[year(stock_data$date) == 2020,] # Remove days before 2020
+
+ranks <- rank(stock_data$news, ties.method = "first")
+stock_data$news_q <- cut(ranks, 
+                         breaks = quantile(ranks, seq(0, 1, l = 9), type = 8),
+                         labels = c("N1","N2","N3","N4","N5","N6","N7","N8"),
                          include.lowest = TRUE)
 
-summary(stock_data$news_t)
+summary(stock_data$news_q) # Look at quantiles
+nrow(stock_data[stock_data$news == 0,]) # Count number of rows with 0 news
 
-rm(news_data, news_data_formatted)
+rm(news_data, news_data_formatted, ranks)
+
+
 
 # Dummy variable for earnings announcments and industy
 # Loading in data
@@ -151,6 +158,8 @@ colnames(stock_data)[3] <- "date"
 
 # The reson 4 observations are removed is because of holidays or no stock information
 
+
+
 # Accounting variables ----------------------------------------------------
 
 # Create dataframe for accounting variables:
@@ -172,7 +181,7 @@ temp1 <- acc_vars%>%
 colnames(temp1)[2] <- "date"
 
 temp2 <- merge(temp1, earning_data[-c(2,4)], by = 1:2 , all = F)
-stock_data1 <- merge(temp2, stock_data, by = c("Security", "date"))%>% 
+stock_data <- merge(temp2, stock_data, by = c("Security", "date"))%>% 
   mutate_at(c("actual","estimated"),as.numeric) # need to make values numeric
 
 rm(temp1,temp2)
@@ -180,13 +189,13 @@ rm(temp1,temp2)
 # Calulating earnings surprise
 # Normalise by using price 5 days before earnings announcement, fix later
 
-stock_data1$ES <- (stock_data1$actual - stock_data1$estimated)/stock_data1$PX_LAST
+stock_data$ES <- (stock_data$actual - stock_data$estimated)/stock_data$PX_LAST
 
 # Calculate quantiles
-stock_data1$ES_quantile <- cut(stock_data1$ES,
-                                quantile(stock_data1$ES, c(0,.10,.20,.30,.40,.50,.60,.70,.80,.90,1)),
-                                labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"),
-                                include.lowest = TRUE)
+stock_data$ES_quantile <- cut(stock_data$ES,
+                          breaks = quantile(stock_data$ES, seq(0, 1, l = 9), type = 8),
+                          labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8"),
+                          include.lowest = TRUE)
 
 # Mean percentage of institutional ownership (IO) in a given month
 temp1 <- acc_vars %>% select(Security, date) %>% 
@@ -201,7 +210,7 @@ temp2 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>%
 
 temp3 <- merge(temp1,temp2, all.x = T) %>% select(-c("year", "month"))
 
-stock_data1 <- merge(temp3, stock_data1, by = c("Security", "date"))
+stock_data <- merge(temp3, stock_data, by = c("Security", "date"))
 
 rm(temp1, temp2, temp3)
 
@@ -220,16 +229,17 @@ temp2 <- acc_vars %>% select(Security, date, date5, TOT_ANALYST_REC) %>%
 
 temp3 <- merge(temp1,temp2, all.x = T) %>% select(-c(month, year))
 
-stock_data1 <- merge(temp3, stock_data1, by = c("Security", "date"))
+stock_data <- merge(temp3, stock_data, by = c("Security", "date"))
 
 rm(temp1, temp2, temp3)
 
 # Change NA values in mean_analyst to 0
-stock_data1$mean_analyst[is.na(stock_data1$mean_analyst)] <- 0
-
+stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
 
 summary(stock_data) # Nice overview of the dataset
-summary(stock_data$news_q)
+
+
+
 
 # Regression analysis -----------------------------------------------------
 
