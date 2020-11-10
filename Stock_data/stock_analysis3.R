@@ -131,7 +131,6 @@ nrow(stock_data[stock_data$news == 0,]) # Count number of rows with 0 news
 rm(news_data, news_data_formatted, ranks)
 
 
-
 # Dummy variable for earnings announcments and industy
 # Loading in data
 earning_data <- read_csv("Stock_data/earning_data.csv") %>% 
@@ -236,10 +235,24 @@ rm(temp1, temp2, temp3)
 # Change NA values in mean_analyst to 0
 stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
 
+# Share turnover
+temp <- acc_vars %>% select(Security, date4, EQY_SH_OUT) # We want to add EQY_SH_OUT to main dataframe
+colnames(temp)[2] <- "date"
+
+stock_data <- merge(temp, stock_data, by = 1:2, all.y = T) # If all.y = F, we loose 3 observations, dont know if they are needed tho
+rm(temp)
+
+stock_data$EQY_SH_OUT <- stock_data$EQY_SH_OUT * 10^6 # It was formatted in mill
+stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$EQY_SH_OUT
+
+
+
 summary(stock_data) # Nice overview of the dataset
 
+EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2)
 
 
+stock_data %>% select(actual, )
 
 # Regression analysis -----------------------------------------------------
 
