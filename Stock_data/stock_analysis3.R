@@ -117,13 +117,8 @@ news_data_formatted <- news_data %>%
 # Create the variable in the main dataframe
 stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.Date(news_data_formatted$date))]
 
-stock_data$news_q <- cut(stock_data$news,
-                         quantile(stock_data$news, c(0,.10,.20,.30,.40,.50,.60,.70,.80,.90,1), na.rm = T),
-                         labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"),
-                         include.lowest = TRUE)
-
 stock_data$news_t <- cut(stock_data$news, 
-                         breaks = quantile(stock_data$news, seq(0, 1, l=11), na.rm = T, type = 5),
+                         breaks = quantile(stock_data$news, seq(0, 1, l=11), na.rm = T, type = 7),
                          labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"),
                          include.lowest = TRUE)
 
