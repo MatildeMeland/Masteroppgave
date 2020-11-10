@@ -112,9 +112,7 @@ news_data_formatted <- news_data %>%
   summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
   mutate(clicks_article = clicks.sum/articles.sum)
 
-# Remove non-trading dates (should we do this?) 
-news_data_formatted <- news_data_formatted[news_data_formatted$date %in% unique(stock_data$date),]
-stock_data$date %>% unique()
+stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.Date(news_data_formatted$date))]
 
 # Create the variable in the main dataframe
 
@@ -124,9 +122,6 @@ stock_data$news_t <- cut(stock_data$news,
                          include.lowest = TRUE)
 
 summary(stock_data$news_t)
-
-stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.Date(news_data_formatted$date))]
-
 
 rm(news_data, news_data_formatted)
 
