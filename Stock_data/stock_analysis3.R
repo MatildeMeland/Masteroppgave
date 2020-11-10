@@ -250,6 +250,19 @@ stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$EQY_SH_OUT
 summary(stock_data) # Nice overview of the dataset
 
 EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2)
+EPS$Security <- gsub(" .*$", "", EPS$Security)
+
+EPS <- EPS[!is.na(EPS$IS_EPS) == T,] # 4512 observations
+EPS <- EPS[!is.na(EPS$date) == T,] # 3785 observations with a date
+EPS <- EPS[year(EPS$date) == 2020,] # 519 observations in 2020
+
+EPS_alt <- acc_vars[, c(1,10,12)]
+
+EPS_alt <- EPS_alt[!is.na(EPS_alt$actual) == T,] # 12235 observations
+EPS_alt <- EPS_alt[!EPS_alt$actual == "#N/A N/A",] # 6833 observations
+EPS_alt <- EPS_alt[year(EPS_alt$date6) == 2020,] # 158 observations in 2020
+
+test <- merge(EPS, EPS_alt, by = 1)
 
 
 stock_data %>% select(actual, )
