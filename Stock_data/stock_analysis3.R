@@ -121,8 +121,8 @@ stock_data <- stock_data[year(stock_data$date) == 2020,] # Remove days before 20
 
 ranks <- rank(stock_data$news, ties.method = "first")
 stock_data$news_q <- cut(ranks, 
-                         breaks = quantile(ranks, seq(0, 1, l = 9), type = 8),
-                         labels = c("N1","N2","N3","N4","N5","N6","N7","N8"),
+                         breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
+                         labels = c("N1","N2","N3","N4","N5"),
                          include.lowest = TRUE)
 
 summary(stock_data$news_q) # Look at quantiles
@@ -192,8 +192,8 @@ stock_data$ES <- (stock_data$actual - stock_data$estimated)/stock_data$PX_LAST
 
 # Calculate quantiles
 stock_data$ES_quantile <- cut(stock_data$ES,
-                          breaks = quantile(stock_data$ES, seq(0, 1, l = 9), type = 8),
-                          labels = c("Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8"),
+                          breaks = quantile(stock_data$ES, seq(0, 1, l = 6), type = 8),
+                          labels = c("Q1","Q2","Q3","Q4","Q5"),
                           include.lowest = TRUE)
 
 # Mean percentage of institutional ownership (IO) in a given month
@@ -260,7 +260,7 @@ EPS_alt <- acc_vars[, c(1,10,12)]
 
 EPS_alt <- EPS_alt[!is.na(EPS_alt$actual) == T,] # 12235 observations
 EPS_alt <- EPS_alt[!EPS_alt$actual == "#N/A N/A",] # 6833 observations
-EPS_alt <- EPS_alt[year(EPS_alt$date6) == 2020,] # 158 observations in 2020
+EPS_alt <- EPS_alt[year(EPS_alt$date6) == 2020,] # 614 observations in 2020
 
 test <- merge(EPS, EPS_alt, by = 1)
 
