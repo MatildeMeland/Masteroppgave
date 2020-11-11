@@ -78,6 +78,8 @@ stock_data <- stock_data %>%
   arrange(., Security) %>% 
   group_by(Security) %>% 
   
+  mutate(PX_5 = lag(PX_LAST, n=5)) %>% 
+  
   mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1)) %>%        # market return for each industry
   
   mutate(daily_return = (PX_LAST-PX_OPEN)/PX_OPEN) %>%                    # daily return for each company
@@ -87,6 +89,7 @@ stock_data <- stock_data %>%
   
   mutate(CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
          -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))))
+
 
 
 # Creating control variables -------------------------------------------
@@ -186,9 +189,8 @@ stock_data <- merge(temp2, stock_data, by = c("Security", "date"))%>%
 rm(temp1,temp2)
 
 # Calulating earnings surprise
-# Normalise by using price 5 days before earnings announcement, fix later
 
-stock_data$ES <- (stock_data$actual - stock_data$estimated)/stock_data$PX_LAST
+stock_data$ES <- (stock_data$actual - stock_data$estimated)/stock_data$PX_5
 
 # Calculate quantiles
 stock_data$ES_quantile <- cut(stock_data$ES,
