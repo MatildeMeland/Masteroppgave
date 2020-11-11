@@ -246,6 +246,8 @@ stock_data$EQY_SH_OUT <- stock_data$EQY_SH_OUT * 10^6 # It was formatted in mill
 stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$EQY_SH_OUT
 
 
+# Remove SOFF as this company had extreme values
+stock_data <- stock_data %>% filter(Security != "SOFF")
 
 summary(stock_data) # Nice overview of the dataset
 
@@ -278,7 +280,7 @@ df <- stock_data %>%
             M_B = mean(MARKET_CAPITALIZATION_TO_BV, na.rm = T),
             analyst = mean(mean_analyst),
             IO_share = mean(mean_IO_share),
-            share_turnover = mean(share_turnover, na.rm = T))
+            share_turnover = mean(share_turnover, na.rm = T)) 
 
 # for some reason the security SOFF has an earnings surprise of 514. There has to be some kind of dataerror here.
 # the real value of EPS from their report is -3,5 no -1001. 
