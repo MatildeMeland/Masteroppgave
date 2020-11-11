@@ -73,8 +73,8 @@ rm(i, j, x, z)
 # Further use these values to calculate cumulative abnormal return
 stock_data <- stock_data %>% 
   group_by(industry, date) %>%
-  summarize(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)) %>% ungroup %>% 
-  merge(., stock_data, by = c("industry", "date")) %>% 
+  mutate(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)-CUR_MKT_CAP) %>% 
+  ungroup %>%
   arrange(., Security) %>% 
   group_by(Security) %>% 
   
