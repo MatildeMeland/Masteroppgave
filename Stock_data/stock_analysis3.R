@@ -190,7 +190,7 @@ rm(temp1,temp2)
 
 # Calulating earnings surprise
 
-stock_data$ES <- (stock_data$actual - stock_data$estimated)/stock_data$PX_5
+stock_data$ES <- (stock_data$actual - stock_data$estimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
 
 # Calculate quantiles
 stock_data$ES_quantile <- cut(stock_data$ES,
@@ -251,25 +251,7 @@ stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$EQY_SH_OUT
 # Remove SOFF as this company had extreme values
 stock_data <- stock_data %>% filter(Security != "SOFF")
 
-summary(stock_data) # Nice overview of the dataset
 
-EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2)
-EPS$Security <- gsub(" .*$", "", EPS$Security)
-
-EPS <- EPS[!is.na(EPS$IS_EPS) == T,] # 4512 observations
-EPS <- EPS[!is.na(EPS$date) == T,] # 3785 observations with a date
-EPS <- EPS[year(EPS$date) == 2020,] # 519 observations in 2020
-
-EPS_alt <- acc_vars[, c(1,10,12)]
-
-EPS_alt <- EPS_alt[!is.na(EPS_alt$actual) == T,] # 12235 observations
-EPS_alt <- EPS_alt[!EPS_alt$actual == "#N/A N/A",] # 6833 observations
-EPS_alt <- EPS_alt[year(EPS_alt$date6) == 2020,] # 614 observations in 2020
-
-test <- merge(EPS, EPS_alt, by = 1)
-
-
-stock_data %>% select(actual, )
 
 # Regression analysis -----------------------------------------------------
 
@@ -475,3 +457,27 @@ stock_data %>%
   scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+
+
+
+
+#Alternative EPS calculations
+
+EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2)
+EPS$Security <- gsub(" .*$", "", EPS$Security)
+
+EPS <- EPS[!is.na(EPS$IS_EPS) == T,] # 4512 observations
+EPS <- EPS[!is.na(EPS$date) == T,] # 3785 observations with a date
+EPS <- EPS[year(EPS$date) == 2020,] # 519 observations in 2020
+
+EPS_alt <- acc_vars[, c(1,10,12)]
+
+EPS_alt <- EPS_alt[!is.na(EPS_alt$actual) == T,] # 12235 observations
+EPS_alt <- EPS_alt[!EPS_alt$actual == "#N/A N/A",] # 6833 observations
+EPS_alt <- EPS_alt[year(EPS_alt$date6) == 2020,] # 614 observations in 2020
+
+test <- merge(EPS, EPS_alt, by = 1)
+
+
+stock_data %>% select(actual, )
