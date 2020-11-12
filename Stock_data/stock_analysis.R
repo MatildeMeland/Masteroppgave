@@ -211,6 +211,13 @@ stock_data$ES_blom_quantile <- cut(stock_data$ES_blom,
                               labels = c("Q1","Q2","Q3","Q4","Q5"),
                               include.lowest = TRUE)
 
+# Remove SOFF as this company had extreme values (only if using bloomberg for EPS)
+stock_data <- stock_data %>% filter(Security != "SOFF")
+
+
+
+
+
 
 # 2. Using models form Foster (1977)
 library(forecast)
@@ -316,8 +323,7 @@ stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$EQY_SH_OUT
 
 rm(acc_vars, EPS)
 
-# Remove SOFF as this company had extreme values (only if using bloomberg for EPS)
-stock_data <- stock_data %>% filter(Security != "SOFF")
+
 
 
 
@@ -549,6 +555,32 @@ stock_data %>% select(news_q, ES_quantile, CAR40) %>%
   ggplot(., aes(x=ES_quantile, y = m_CAR40, group=news_q)) +
   geom_line(aes(colour = news_q)) + 
   geom_point()
+
+## Foster models
+table1 <- stock_data %>%
+  select(news_q, ES_model1, ES_mod1_quantile, CUR_MKT_CAP, mean_analyst, mean_IO_share, share_turnover) %>%
+  filter(news_q == "N1" | news_q == "N5") %>%
+  group_by(news_q) %>%
+  summarize(ES = mean(ES_model1),
+            mkt_cap = mean(CUR_MKT_CAP, na.rm = T)/1000,
+            analyst = mean(mean_analyst),
+            IO_share = mean(mean_IO_share),
+            share_turnover = mean(share_turnover, na.rm = T)) %>%
+  t() %>% as.data.frame() %>% rename(N1 = V1, N5 = V2) %>%
+  subset(N1 != "N1") %>% rownames_to_column() %>%
+  mutate_at(c("N1","N5"), as.numeric) %>% # Keep only top and bottom quantiles
+  mutate(diff = N5-N1)
+
+df2 <- table1 <- stock_data %>%
+  select(news_q, ES_model1, ES_mod1_quantile, CUR_MKT_CAP, mean_analyst, mean_IO_share, share_turnover) %>%
+  filter(news_q == "N1" | news_q == "N5")
+
+for (i in 2:(ncol(df2)-1)) {
+  model1 <- t.test(df2[df2$news_q == "N1", i], df2[df2$news_q == "N5", i])
+  table1$p[i-1] <- model1$p.value
+  table1$stderr[i-1] <- model1$stderr
+}
+
 
 
 # CAR1 - Foster mod1
