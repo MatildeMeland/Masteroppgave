@@ -481,10 +481,10 @@ EPS$Q[EPS$date %within% Y2020_Q1] <- "2020Q1"
 EPS$Q[EPS$date %within% Y2020_Q2] <- "2020Q2"
 
 
-EPS_alt <- acc_vars[, c(1,10,12)]
+EPS_alt <- acc_vars[, c(1,10,11,12)]
 
-EPS_alt <- EPS_alt[!is.na(EPS_alt$actual) == T,] # 12235 observations
-EPS_alt <- EPS_alt[!EPS_alt$actual == "#N/A N/A",] # 6833 observations
+EPS_alt <- EPS_alt[!is.na(EPS_alt$estimated) == T,] # 12235 observations
+EPS_alt <- EPS_alt[!EPS_alt$estimated == "#N/A N/A",] # 6833 observations
 EPS_alt <- EPS_alt[year(EPS_alt$date6) == 2020,] # 614 observations in 2020
 
 
