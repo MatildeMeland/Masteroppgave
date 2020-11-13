@@ -35,3 +35,19 @@ df$date <- as.Date(df$date, format="%d.%m.%Y")
 
 # These problems can be fixed with manual work
 # Current file gives us the timeline.
+
+
+# Nett-TV data set
+government_tv <- readLines("Gov_announcments/nett-tv.txt", encoding = "UTF-8")
+
+government_tv <- as.data.frame(matrix(government_tv, ncol = 5, byrow = T)) %>% 
+  select("V2", "V3", "V4")
+
+government_tv$date <- gsub(" .*$", "", government_tv$V3)
+government_tv$date <- as.Date(government_tv$date, format="%d.%m.%Y")
+
+colnames(government_tv) <- c("title", "title2", "content", "date")
+df2$date <- gsub(" .*$", "", df2$V3)
+
+write.csv(government_tv, file = "Stock_data/government_tv.csv")
+
