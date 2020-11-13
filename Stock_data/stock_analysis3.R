@@ -153,7 +153,7 @@ earning_data <-earning_data[!(earning_data$Security == "LSG" & earning_data$date
 earning_data <-earning_data[!(earning_data$Security == "SBVG" & earning_data$date == as.Date("2020-03-24")),]
 
 
-# Make a column for quaters
+# Make a column for quarters
 Y2019_Q3 <- interval(ymd("2019-10-01"), ymd("2019-12-30"))
 Y2019_Q4 <- interval(ymd("2020-01-01"), ymd("2020-03-31"))
 Y2020_Q1 <- interval(ymd("2020-04-01"), ymd("2020-06-30"))
