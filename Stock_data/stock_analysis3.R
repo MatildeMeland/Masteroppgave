@@ -145,16 +145,21 @@ stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
 # Change column names
 colnames(earning_data) <- c("Security", "Name", "date")
 
-# Remove duplicated dates with about 10 days in between
-earning_data <- earning_data %>%
-  group_by(Security) %>% 
-  mutate(DUP = ifelse(abs(difftime(date, lag(date))) <= 10,1,0)) %>% 
-  subset(DUP %in%  0| DUP %in%  NA)
+# Remove duplicated dates with about 40 days in between
+earning_data <- earning_data %>% group_by(Security) %>% arrange(date, .by_group = TRUE) %>%  
+  mutate(DUP = ifelse(abs(difftime(date, lead(date))) <= 40,1,0)) %>% 
+  subset(DUP %in%  0| DUP %in%  NA) %>% select(-DUP)
+
+# remove shitty observations
+earning_data <-earning_data[!(earning_data$Security == "LSG" & earning_data$date == as.Date("2020-01-08")),]
+earning_data <-earning_data[!(earning_data$Security == "SBVG" & earning_data$date == as.Date("2020-03-24")),]
+
+
 
 # Creates a dataset with only earnings dates in stock data.
 stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>% 
   mutate(AD = ifelse(date.x == date.y,1,0)) %>% 
-  subset(AD ==1) %>% select(-c(date.y, AD, DUP))
+  subset(AD ==1) %>% select(-c(date.y, AD))
 
 colnames(stock_data)[3] <- "date"
 
@@ -298,9 +303,9 @@ df <- stock_data %>%
 
 lm.fit <- stock_data %>% 
   select(news_q, ES, ES_quantile, CAR1, CAR40) %>% 
-  mutate(N10 = ifelse(stock_data$news_q == "N10", 1, 0),
-         Q10 = ifelse(stock_data$ES_quantile == "Q10", 1, 0)) %>% 
-  lm(CAR1 ~ Q10 + N10 + Q10*N10, data=.)
+  mutate(N5 = ifelse(stock_data$news_q == "N5", 1, 0),
+         Q5 = ifelse(stock_data$ES_quantile == "Q5", 1, 0)) %>% 
+  lm(CAR1 ~ Q5 + N5 + Q5*N5, data=.)
 
 summary(lm.fit)
 
