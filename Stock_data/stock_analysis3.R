@@ -136,11 +136,9 @@ rm(news_data, news_data_formatted, ranks)
 
 # Dummy variable for earnings announcments and industy
 # Loading in data
+# Earnings data
 earning_data <- read_csv("Stock_data/earning_data.csv") %>% 
   select(-c(X1,industri, industry))
-
-# Create matching tickers
-stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
 
 # Change column names
 colnames(earning_data) <- c("Security", "Name", "date")
@@ -155,6 +153,76 @@ earning_data <-earning_data[!(earning_data$Security == "LSG" & earning_data$date
 earning_data <-earning_data[!(earning_data$Security == "SBVG" & earning_data$date == as.Date("2020-03-24")),]
 
 
+# Make a column for quaters
+Y2019_Q3 <- interval(ymd("2019-10-01"), ymd("2019-12-30"))
+Y2019_Q4 <- interval(ymd("2020-01-01"), ymd("2020-03-31"))
+Y2020_Q1 <- interval(ymd("2020-04-01"), ymd("2020-06-30"))
+Y2020_Q2 <- interval(ymd("2020-07-01"), ymd("2020-09-30"))
+
+earning_data$quarter[earning_data$date %within% Y2019_Q3] <- "Q3"
+earning_data$quarter[earning_data$date %within% Y2019_Q4] <- "Q4"
+earning_data$quarter[earning_data$date %within% Y2020_Q1] <- "Q1"
+earning_data$quarter[earning_data$date %within% Y2020_Q2] <- "Q2"
+
+rm(Y2019_Q3, Y2019_Q4, Y2020_Q1, Y2020_Q2)
+
+# EPS
+EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2) %>% 
+  mutate(ES_4 = NA)
+
+EPS$Security <- gsub(" .*$", "", EPS$Security, ignore.case = T)
+
+
+colnames(EPS)[3] <- "eps"
+
+# EPS last year
+for (i in 1:length(EPS$Security)){
+  x <- EPS$eps[EPS$Security == EPS$Security[i] & year(EPS$date) == year(EPS$date[i]) - 1 & EPS$quarter == EPS$quarter[i]]
+  if (length(x) > 0) {
+    EPS$ES_4[i] <- x
+  }
+}
+
+
+EPS <- EPS %>% group_by(Security) %>% 
+  mutate(ES_4d = ES_4 + c(NA, cumsum(na.omit(c(NA,diff(eps)))))/(1:n()-1))
+
+EPS <- EPS %>% filter(date > as.Date("2019-12-30"))
+
+# Combine earnings data with EPS data
+earning_data <- merge(earning_data, EPS[,-2] , by = c("Security", "quarter"))
+
+rm(EPS)
+
+# Create dataframe for accounting variables:
+# remove some unneccesary variables as well as PX_TO_BOOK as Book to market had more obs.
+acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
+  select(-c(date1, time, PX_TO_BOOK_RATIO, date2, comparable, period))
+
+acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
+acc_vars$date <- as.Date(acc_vars$date)
+acc_vars$date5 <- as.Date(as.numeric(acc_vars$date5), origin = "1899-12-30") 
+
+# Combine earnings data with consensus analyst forcast of EPS
+temp1 <- acc_vars%>% 
+  select(Security, date6, estimated, actual) %>% # add book to market somewhere else
+  filter(estimated != "#N/A N/A" & actual != "#N/A N/A" & year(date6) > 2019)
+
+colnames(temp1)[2] <- "date"
+
+earning_data <- right_join(temp1, earning_data[-c(3)], by = c("Security","date") , all = F)
+
+rm(temp1)
+
+# Calulating earnings surprise
+
+stock_data$ES <- (stock_data$actual - stock_data$estimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
+
+# Calculate quantiles
+stock_data$ES_quantile <- cut(stock_data$ES,
+                              breaks = quantile(stock_data$ES, seq(0, 1, l = 6), type = 8),
+                              labels = c("Q1","Q2","Q3","Q4","Q5"),
+                              include.lowest = TRUE)
 
 # Creates a dataset with only earnings dates in stock data.
 stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>% 
@@ -169,39 +237,10 @@ colnames(stock_data)[3] <- "date"
 
 # Accounting variables ----------------------------------------------------
 
-# Create dataframe for accounting variables:
-# remove some unneccesary variables as well as PX_TO_BOOK as Book to market had more obs.
-acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
-  select(-c(date1, time, PX_TO_BOOK_RATIO, date2, comparable, period))
 
-acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
-acc_vars$date <- as.Date(acc_vars$date)
-acc_vars$date5 <- as.Date(as.numeric(acc_vars$date5), origin = "1899-12-30") 
 
-# Earnings surprise
-# Create temporary datasets with values of interest that are later merged togheter
-# The same logic is used for the other variables as well
-temp1 <- acc_vars%>% 
-  select(Security, date6, estimated, actual, MARKET_CAPITALIZATION_TO_BV) %>% # add book to market
-  filter(estimated != "#N/A N/A" & actual != "#N/A N/A" & year(date6) > 2018)
 
-colnames(temp1)[2] <- "date"
 
-temp2 <- merge(temp1, earning_data[-c(2,4)], by = 1:2 , all = F)
-stock_data <- merge(temp2, stock_data, by = c("Security", "date"))%>% 
-  mutate_at(c("actual","estimated"),as.numeric) # need to make values numeric
-
-rm(temp1,temp2)
-
-# Calulating earnings surprise
-
-stock_data$ES <- (stock_data$actual - stock_data$estimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
-
-# Calculate quantiles
-stock_data$ES_quantile <- cut(stock_data$ES,
-                          breaks = quantile(stock_data$ES, seq(0, 1, l = 6), type = 8),
-                          labels = c("Q1","Q2","Q3","Q4","Q5"),
-                          include.lowest = TRUE)
 
 # Mean percentage of institutional ownership (IO) in a given month
 temp1 <- acc_vars %>% select(Security, date) %>% 
