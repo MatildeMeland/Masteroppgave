@@ -268,7 +268,7 @@ stock_data <- stock_data %>% filter(Security != "SOFF")
 
 
 # Earnings surprise
-earnings_calc <- function(EPSactual, EPSestimated) {
+earnings_calc <- function(EPSactual, EPSestimated, variable) {
   stock_data$ES <<- (EPSactual - EPSestimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
   
   stock_data$ES_quantile <<- cut(stock_data$ES,
@@ -276,79 +276,60 @@ earnings_calc <- function(EPSactual, EPSestimated) {
                                  labels = c("Q1","Q2","Q3","Q4","Q5"),
                                  include.lowest = TRUE)
   
-  # CAR1
-  stock_data %>% select(news_q, ES_quantile, CAR1) %>%
+  stock_data$plot <- variable
+  
+  # plot
+  stock_data %>% select(news_q, ES_quantile, plot) %>%
     filter(news_q == "N1" | news_q == "N5") %>%
     group_by(news_q,ES_quantile) %>%
-    summarise(m_CAR1 = mean(CAR1, na.rm = T)) %>% ungroup() %>%
+    summarise(mean = mean(plot, na.rm = T)) %>% ungroup() %>%
     na.omit(ES) %>% 
     
-    ggplot(., aes(x=ES_quantile, y = m_CAR1, group=news_q)) +
+    ggplot(., aes(x = ES_quantile, y = mean, group = news_q)) +
     geom_line(aes(colour = news_q)) + 
-    geom_point()
-  
+    geom_point() +
+    labs(title = paste0("Average ", gsub("^.+\\$", "", deparse(substitute(variable))), " for Each Earnings Surprise Quantile"),
+         subtitle = paste0("EPS Estimate Model = ", gsub("^.+\\$", "", deparse(substitute(EPSestimated)))),
+         x = "ES Quantile", y = gsub("^.+\\$", "", deparse(substitute(variable)))) + # Give right variable name inside plot
+    theme_bw()
 }
+
 
 # Analyst Consensus
-earnings_calc(stock_data$actual, stock_data$estimated)
-stock_data$ES[!is.na(stock_data$ES)] %>% length()
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$CAR1)
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$CAR40)
+
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$AV_ODEEN) # Very random
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$AV_DV)
+
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$VOLATILITY_30D)
+
+stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
+
 
 # Foster model 1
-earnings_calc(stock_data$eps, stock_data$ES_4)
-stock_data$ES[!is.na(stock_data$ES)] %>% length()
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$CAR1)
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$CAR40)
+
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$AV_ODEEN)
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$AV_DV)
+
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$VOLATILITY_30D)
+
+stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
+
 
 # Foster model 2
-earnings_calc(stock_data$eps, stock_data$ES_4d)
-stock_data$ES[!is.na(stock_data$ES)] %>% length()
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40)
 
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_ODEEN)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_DV)
 
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$VOLATILITY_30D)
 
-# Try to integrade in function 
-# Can't get the function to make two plots :/
-CAR40 <- function(){
-  # CAR40
-  stock_data %>% select(news_q, ES_quantile, CAR40) %>%
-    filter(news_q == "N1" | news_q == "N5") %>%
-    group_by(news_q,ES_quantile) %>%
-    summarise(m_CAR40 = mean(CAR40, na.rm = T)) %>% ungroup() %>%
-    
-    ggplot(., aes(x=ES_quantile, y = m_CAR40, group=news_q)) +
-    geom_line(aes(colour = news_q)) + 
-    geom_point()
-}
+stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Calulating earnings surprise
-
-stock_data$ES <- (stock_data$actual - stock_data$estimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
-
-# Calculate quantiles
-stock_data$ES_quantile <- cut(stock_data$ES,
-                              breaks = quantile(stock_data$ES, seq(0, 1, l = 6), type = 8),
-                              labels = c("Q1","Q2","Q3","Q4","Q5"),
-                              include.lowest = TRUE)
-
-# Creates a dataset with only earnings dates in stock data.
-stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>% 
-  mutate(AD = ifelse(date.x == date.y,1,0)) %>% 
-  subset(AD ==1) %>% select(-c(date.y, AD))
-
-colnames(stock_data)[3] <- "date"
-
-# The reson 4 observations are removed is because of holidays or no stock information
 
 
 
