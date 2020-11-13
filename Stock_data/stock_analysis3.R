@@ -166,7 +166,7 @@ earning_data$quarter[earning_data$date %within% Y2020_Q2] <- "Q2"
 
 rm(Y2019_Q3, Y2019_Q4, Y2020_Q1, Y2020_Q2)
 
-# EPS
+# EPS data
 EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2) %>% 
   mutate(ES_4 = NA)
 
@@ -203,6 +203,7 @@ acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
 acc_vars$date <- as.Date(acc_vars$date)
 acc_vars$date5 <- as.Date(as.numeric(acc_vars$date5), origin = "1899-12-30") 
 
+
 # Combine earnings data with consensus analyst forcast of EPS
 temp1 <- acc_vars%>% 
   select(Security, date6, estimated, actual) %>% # add book to market somewhere else
@@ -213,6 +214,11 @@ colnames(temp1)[2] <- "date"
 earning_data <- right_join(temp1, earning_data[-c(3)], by = c("Security","date") , all = F)
 
 rm(temp1)
+
+# Combine with stock data
+stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
+
+stock_data <- merge(stock_data, earning_data, by = c("Security", "date")) 
 
 # Calulating earnings surprise
 
@@ -236,10 +242,6 @@ colnames(stock_data)[3] <- "date"
 
 
 # Accounting variables ----------------------------------------------------
-
-
-
-
 
 
 # Mean percentage of institutional ownership (IO) in a given month
