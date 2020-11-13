@@ -156,7 +156,7 @@ news_plot_ncorona <- news_not_corona %>% # Sum of total pageviews for all not co
   select(date, pageviews) %>% 
   group_by(date) %>% 
   summarise(clicks_sum = sum(pageviews)) %>% 
-  mutate(type = "not corona")
+  mutate(type = "other")
 
 # Compare Corona to ALL atricles and all non corona articles
 news_plot_table <- rbind(news_plot_all, news_plot_corona, news_plot_ncorona)
@@ -171,7 +171,7 @@ rm(news_plot_all, news_plot_corona, news_plot_ncorona) # Remove elements not nee
 
 ggplot(data = news_plot_table, aes(x = as.Date(date), y = clicks_sum/10^6, color = type)) +
   geom_line() +
-  labs(title = "Total Pageviews of All Articles (pink) and Corona articles (blue) by NRK (MILL)",
+  labs(title = "Total Pageviews of Corona Articles (pink) and All Other Articles (blue) by NRK (MILL)",
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Million pageviews") +
   scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
