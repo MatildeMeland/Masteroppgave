@@ -161,17 +161,19 @@ colnames(earning_data) <- c("Security", "Name", "date")
 earning_data <- earning_data %>%
   group_by(Security) %>% 
   mutate(DUP = ifelse(abs(difftime(date, lag(date))) <= 10,1,0)) %>% 
-  subset(DUP %in%  0| DUP %in%  NA)
+  subset(DUP %in%  0| DUP %in%  NA) %>% 
+  select(-DUP)
 
 # Creates a dataset with only earnings dates in stock data.
 stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>% 
   mutate(AD = ifelse(date.x == date.y,1,0)) %>% 
-  subset(AD ==1) %>% select(-c(date.y, AD, DUP))
+  subset(AD ==1) %>% select(-c(date.y, AD))
 
 colnames(stock_data)[3] <- "date"
 
 # The reson 4 observations are removed is because of holidays or no stock information
-rm(earning_data)
+
+
 
 
 # Accounting variables ----------------------------------------------------
@@ -185,41 +187,23 @@ acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
 acc_vars$date <- as.Date(acc_vars$date)
 acc_vars$date5 <- as.Date(as.numeric(acc_vars$date5), origin = "1899-12-30") 
 
-# Earnings surprise
 
-# 1. Using Bloomberg analyst consensus
 # Create temporary datasets with values of interest that are later merged togheter
 # The same logic is used for the other variables as well
 temp1 <- acc_vars%>% 
-  select(Security, date6, estimated, actual, MARKET_CAPITALIZATION_TO_BV) %>% # add book to market
-  filter(estimated != "#N/A N/A" & actual != "#N/A N/A" & year(date6) > 2018)
+  select(Security, date6, estimated, actual, MARKET_CAPITALIZATION_TO_BV)
 
 colnames(temp1)[2] <- "date"
 
-temp2 <- merge(temp1, earning_data[-c(2,4)], by = 1:2 , all = F)
-stock_data <- merge(temp2, stock_data, by = c("Security", "date"))%>% 
+temp2 <- merge(temp1, earning_data[-2], by = 1:2 , all = F)
+stock_data <- merge(temp2, stock_data, by = c("Security", "date"), all.y = T)%>% 
   mutate_at(c("actual","estimated"),as.numeric) # need to make values numeric
 
-rm(temp1,temp2)
-
-# Calulating earnings surprise
-stock_data$ES_blom <- (stock_data$actual - stock_data$estimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
-
-# Calculate quantiles
-stock_data$ES_blom_quantile <- cut(stock_data$ES_blom,
-                              breaks = quantile(stock_data$ES_blom, seq(0, 1, l = 6), type = 8),
-                              labels = c("Q1","Q2","Q3","Q4","Q5"),
-                              include.lowest = TRUE)
-
-# Remove SOFF as this company had extreme values (only if using bloomberg for EPS)
-stock_data <- stock_data %>% filter(Security != "SOFF")
+rm(temp1,temp2, earning_data)
 
 
 
-
-
-
-# 2. Using models form Foster (1977)
+# Load historical data
 library(forecast)
 
 EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2) %>% 
@@ -240,6 +224,7 @@ rm(i, x)
 
 summary(EPS$model1) # Shows NA's
 EPS$model1[is.na(EPS$model1) & year(EPS$date) == "2020"] %>% length() # NA's in 2020
+EPS$model1[!is.na(EPS$model1) & year(EPS$date) == "2020"] %>% length() # not NA's in 2020
 
 # Second model - with drift
 EPS <- EPS %>% group_by(Security) %>%
@@ -250,26 +235,61 @@ EPS <- EPS %>% group_by(Security) %>%
 # Make a temp column with year to match the dataframes
 EPS$year <- year(EPS$date)
 stock_data$year <- year(stock_data$date)
-stock_data <- merge(stock_data, EPS[-2], by = c("Security", "quarter", "year"))
+stock_data <- merge(stock_data, EPS[-2], by = c("Security", "quarter", "year"), all.x = T)
 
 
-# Calulating earnings surprise model 1
-stock_data$ES_model1 <- (stock_data$eps - stock_data$model1)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
 
-# Calculate quantiles for model 1
-stock_data$ES_mod1_quantile <- cut(stock_data$ES_model1,
-                                   breaks = quantile(stock_data$ES_model1, seq(0, 1, l = 6), na.rm = T, type = 8),
-                                   labels = c("Q1","Q2","Q3","Q4","Q5"),
-                                   include.lowest = TRUE)
+# Earnings surprise
+earnings_calc <- function(EPSactual, EPSestimated) {
+  stock_data$ES <<- (EPSactual - EPSestimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
+  
+  stock_data$ES_quantile <<- cut(stock_data$ES,
+                                     breaks = quantile(stock_data$ES, seq(0, 1, l = 6), na.rm = T, type = 8),
+                                     labels = c("Q1","Q2","Q3","Q4","Q5"),
+                                     include.lowest = TRUE)
+  
+  # CAR1
+  stock_data %>% select(news_q, ES_quantile, CAR1) %>%
+    filter(news_q == "N1" | news_q == "N5") %>%
+    group_by(news_q,ES_quantile) %>%
+    summarise(m_CAR1 = mean(CAR1, na.rm = T)) %>% ungroup() %>%
+    
+    ggplot(., aes(x=ES_quantile, y = m_CAR1, group=news_q)) +
+    geom_line(aes(colour = news_q)) + 
+    geom_point()
+  
+}
 
-# Calulating earnings surprise model 2
-stock_data$ES_model2 <- (stock_data$eps - stock_data$model2)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
+# Analyst Consensus
+earnings_calc(stock_data$actual, stock_data$estimated)
+stock_data$ES[!is.na(stock_data$ES)] %>% length()
 
-# Calculate quantiles for model 2
-stock_data$ES_mod2_quantile <- cut(stock_data$ES_model2,
-                                   breaks = quantile(stock_data$ES_model2, seq(0, 1, l = 6), na.rm = T, type = 8),
-                                   labels = c("Q1","Q2","Q3","Q4","Q5"),
-                                   include.lowest = TRUE)
+# Foster model 1
+earnings_calc(stock_data$eps, stock_data$model1)
+stock_data$ES[!is.na(stock_data$ES)] %>% length()
+
+# Foster model 2
+earnings_calc(stock_data$eps, stock_data$model2)
+stock_data$ES[!is.na(stock_data$ES)] %>% length()
+
+
+
+# Try to integrade in function 
+# Can't get the function to make two plots :/
+CAR40 <- function(){
+  # CAR40
+  stock_data %>% select(news_q, ES_quantile, CAR40) %>%
+    filter(news_q == "N1" | news_q == "N5") %>%
+    group_by(news_q,ES_quantile) %>%
+    summarise(m_CAR40 = mean(CAR40, na.rm = T)) %>% ungroup() %>%
+    
+    ggplot(., aes(x=ES_quantile, y = m_CAR40, group=news_q)) +
+    geom_line(aes(colour = news_q)) + 
+    geom_point()
+}
+
+
+
 
 
 # Mean percentage of institutional ownership (IO) in a given month
@@ -533,93 +553,6 @@ stock_data %>%
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 
-
-
-
-
-# CAR1 - Bloomberg
-stock_data %>% select(news_q, ES_quantile, CAR1) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q,ES_quantile) %>%
-  summarise(m_CAR1 = mean(CAR1, na.rm = T)) %>% ungroup() %>%
-  ggplot(., aes(x=ES_quantile, y = m_CAR1, group=news_q)) +
-  geom_line(aes(colour = news_q)) + 
-  geom_point()
-
-# CAR40 - Bloomberg
-stock_data %>% select(news_q, ES_quantile, CAR40) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q,ES_quantile) %>%
-  summarise(m_CAR40 = mean(CAR40, na.rm = T)) %>% ungroup() %>%
-  
-  ggplot(., aes(x=ES_quantile, y = m_CAR40, group=news_q)) +
-  geom_line(aes(colour = news_q)) + 
-  geom_point()
-
-## Foster models
-table1 <- stock_data %>%
-  select(news_q, ES_model1, ES_mod1_quantile, CUR_MKT_CAP, mean_analyst, mean_IO_share, share_turnover) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q) %>%
-  summarize(ES = mean(ES_model1),
-            mkt_cap = mean(CUR_MKT_CAP, na.rm = T)/1000,
-            analyst = mean(mean_analyst),
-            IO_share = mean(mean_IO_share),
-            share_turnover = mean(share_turnover, na.rm = T)) %>%
-  t() %>% as.data.frame() %>% rename(N1 = V1, N5 = V2) %>%
-  subset(N1 != "N1") %>% rownames_to_column() %>%
-  mutate_at(c("N1","N5"), as.numeric) %>% # Keep only top and bottom quantiles
-  mutate(diff = N5-N1)
-
-df2 <- table1 <- stock_data %>%
-  select(news_q, ES_model1, ES_mod1_quantile, CUR_MKT_CAP, mean_analyst, mean_IO_share, share_turnover) %>%
-  filter(news_q == "N1" | news_q == "N5")
-
-for (i in 2:(ncol(df2)-1)) {
-  model1 <- t.test(df2[df2$news_q == "N1", i], df2[df2$news_q == "N5", i])
-  table1$p[i-1] <- model1$p.value
-  table1$stderr[i-1] <- model1$stderr
-}
-
-
-
-# CAR1 - Foster mod1
-stock_data %>% select(news_q, ES_mod1_quantile, CAR1) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q,ES_mod1_quantile) %>%
-  summarise(m_CAR1 = mean(CAR1, na.rm = T)) %>% ungroup() %>%
-  ggplot(., aes(x=ES_mod1_quantile, y = m_CAR1, group=news_q)) +
-  geom_line(aes(colour = news_q)) + 
-  geom_point()
-
-# CAR40 - Foster mod1
-stock_data %>% select(news_q, ES_mod1_quantile, CAR40) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q,ES_mod1_quantile) %>%
-  summarise(m_CAR40 = mean(CAR40, na.rm = T)) %>% ungroup() %>%
-  
-  ggplot(., aes(x=ES_mod1_quantile, y = m_CAR40, group=news_q)) +
-  geom_line(aes(colour = news_q)) + 
-  geom_point()
-
-# CAR1 - Foster mod2
-stock_data %>% select(news_q, ES_mod2_quantile, CAR1) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q,ES_mod2_quantile) %>%
-  summarise(m_CAR1 = mean(CAR1, na.rm = T)) %>% ungroup() %>%
-  ggplot(., aes(x=ES_mod2_quantile, y = m_CAR1, group=news_q)) +
-  geom_line(aes(colour = news_q)) + 
-  geom_point()
-
-# CAR40 - Foster mod2
-stock_data %>% select(news_q, ES_mod2_quantile, CAR40) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q,ES_mod2_quantile) %>%
-  summarise(m_CAR40 = mean(CAR40, na.rm = T)) %>% ungroup() %>%
-  
-  ggplot(., aes(x=ES_mod2_quantile, y = m_CAR40, group=news_q)) +
-  geom_line(aes(colour = news_q)) + 
-  geom_point()
 
 
 
