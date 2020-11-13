@@ -258,9 +258,10 @@ rm(temp1, temp2, temp3, temp4, temp5, acc_vars)
 stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
 
 # Share turnover
-stock_data$EQY_SH_OUT <- stock_data$EQY_SH_OUT * 10^6 # It was formatted in mill
-stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$EQY_SH_OUT
+stock_data$EQY_SH_OUT <- stock_data$mean_share * 10^6 # It was formatted in mill
+stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$mean_share
 
+assign("last.warning", NULL, envir = baseenv()) # removes warning messages
 
 # Remove SOFF as this company had extreme values
 stock_data <- stock_data %>% filter(Security != "SOFF")
