@@ -222,6 +222,49 @@ stock_data <- merge(stock_data, earning_data, by = c("Security", "date")) %>%
   mutate_at(c("actual","estimated"),as.numeric) # need to make values numeric
 
 
+# Incorporating accounting variables
+
+# Dates, month, year for each security
+temp1 <- acc_vars %>% select(Security, date) %>% 
+  mutate(month = month(date),
+         year = year(date) )
+
+# Number of analysts
+temp2 <- acc_vars %>% select(Security, date, date5, TOT_ANALYST_REC) %>% 
+  mutate(month = month(date5),year = year(date5) ) %>% 
+  group_by(Security, year, month) %>% 
+  summarize(mean_analyst = mean(TOT_ANALYST_REC))
+
+# Institutional ownership
+temp3 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>% 
+  mutate(month = month(date3), year = year(date3) ) %>% 
+  group_by(Security, year, month) %>% 
+  summarize(mean_IO_share = mean(EQY_INST_PCT_SH_OUT))
+
+# Market to book and shares outstanding
+temp4 <- acc_vars %>% select(Security, date, MARKET_CAPITALIZATION_TO_BV, EQY_SH_OUT) %>% 
+  mutate(month = month(date), year = year(date) ) %>% 
+  group_by(Security, year, month) %>% 
+  summarize(mean_MtoB = mean(MARKET_CAPITALIZATION_TO_BV),
+            mean_share = mean(EQY_SH_OUT))
+
+temp5 <- Reduce(function(x,y) merge(x = x, y = y, all.x = T), 
+                list(temp1, temp2, temp3, temp4)) %>% select(-c(month, year))
+
+stock_data <- merge(temp5, stock_data, by = c("Security", "date"))
+
+rm(temp1, temp2, temp3, temp4, temp5, acc_vars)
+
+stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
+
+# Share turnover
+stock_data$EQY_SH_OUT <- stock_data$EQY_SH_OUT * 10^6 # It was formatted in mill
+stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$EQY_SH_OUT
+
+
+# Remove SOFF as this company had extreme values
+stock_data <- stock_data %>% filter(Security != "SOFF")
+
 
 # Earnings surprise
 earnings_calc <- function(EPSactual, EPSestimated) {
@@ -306,63 +349,6 @@ colnames(stock_data)[3] <- "date"
 
 # The reson 4 observations are removed is because of holidays or no stock information
 
-
-
-# Accounting variables ----------------------------------------------------
-
-
-# Mean percentage of institutional ownership (IO) in a given month
-temp1 <- acc_vars %>% select(Security, date) %>% 
-  mutate(month = month(date),
-         year = year(date) )
-
-temp2 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>% 
-  mutate(month = month(date3),
-         year = year(date3) ) %>% 
-  group_by(Security, year, month) %>% 
-  summarize(mean_IO_share = mean(EQY_INST_PCT_SH_OUT))
-
-temp3 <- merge(temp1,temp2, all.x = T) %>% select(-c("year", "month"))
-
-stock_data <- merge(temp3, stock_data, by = c("Security", "date"))
-
-rm(temp1, temp2, temp3)
-
-
-# Mean number of analysts in a given month
-
-temp1 <- acc_vars %>% select(Security, date) %>% 
-  mutate(month = month(date),
-         year = year(date) )
-
-temp2 <- acc_vars %>% select(Security, date, date5, TOT_ANALYST_REC) %>% 
-  mutate(month = month(date5),
-         year = year(date5) ) %>% 
-  group_by(Security, year, month) %>% 
-  summarize(mean_analyst = mean(TOT_ANALYST_REC))
-
-temp3 <- merge(temp1,temp2, all.x = T) %>% select(-c(month, year))
-
-stock_data <- merge(temp3, stock_data, by = c("Security", "date"))
-
-rm(temp1, temp2, temp3)
-
-# Change NA values in mean_analyst to 0
-stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
-
-# Share turnover
-temp <- acc_vars %>% select(Security, date4, EQY_SH_OUT) # We want to add EQY_SH_OUT to main dataframe
-colnames(temp)[2] <- "date"
-
-stock_data <- merge(temp, stock_data, by = 1:2, all.y = T) # If all.y = F, we loose 3 observations, dont know if they are needed tho
-rm(temp)
-
-stock_data$EQY_SH_OUT <- stock_data$EQY_SH_OUT * 10^6 # It was formatted in mill
-stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$EQY_SH_OUT
-
-
-# Remove SOFF as this company had extreme values
-stock_data <- stock_data %>% filter(Security != "SOFF")
 
 
 
