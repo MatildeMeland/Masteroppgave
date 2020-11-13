@@ -218,7 +218,74 @@ rm(temp1)
 # Combine with stock data
 stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
 
-stock_data <- merge(stock_data, earning_data, by = c("Security", "date")) 
+stock_data <- merge(stock_data, earning_data, by = c("Security", "date")) %>% 
+  mutate_at(c("actual","estimated"),as.numeric) # need to make values numeric
+
+
+
+# Earnings surprise
+earnings_calc <- function(EPSactual, EPSestimated) {
+  stock_data$ES <<- (EPSactual - EPSestimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
+  
+  stock_data$ES_quantile <<- cut(stock_data$ES,
+                                 breaks = quantile(stock_data$ES, seq(0, 1, l = 6), na.rm = T, type = 8),
+                                 labels = c("Q1","Q2","Q3","Q4","Q5"),
+                                 include.lowest = TRUE)
+  
+  # CAR1
+  stock_data %>% select(news_q, ES_quantile, CAR1) %>%
+    filter(news_q == "N1" | news_q == "N5") %>%
+    group_by(news_q,ES_quantile) %>%
+    summarise(m_CAR1 = mean(CAR1, na.rm = T)) %>% ungroup() %>%
+    na.omit(ES) %>% 
+    
+    ggplot(., aes(x=ES_quantile, y = m_CAR1, group=news_q)) +
+    geom_line(aes(colour = news_q)) + 
+    geom_point()
+  
+}
+
+# Analyst Consensus
+earnings_calc(stock_data$actual, stock_data$estimated)
+stock_data$ES[!is.na(stock_data$ES)] %>% length()
+
+# Foster model 1
+earnings_calc(stock_data$eps, stock_data$ES_4)
+stock_data$ES[!is.na(stock_data$ES)] %>% length()
+
+# Foster model 2
+earnings_calc(stock_data$eps, stock_data$ES_4d)
+stock_data$ES[!is.na(stock_data$ES)] %>% length()
+
+
+
+# Try to integrade in function 
+# Can't get the function to make two plots :/
+CAR40 <- function(){
+  # CAR40
+  stock_data %>% select(news_q, ES_quantile, CAR40) %>%
+    filter(news_q == "N1" | news_q == "N5") %>%
+    group_by(news_q,ES_quantile) %>%
+    summarise(m_CAR40 = mean(CAR40, na.rm = T)) %>% ungroup() %>%
+    
+    ggplot(., aes(x=ES_quantile, y = m_CAR40, group=news_q)) +
+    geom_line(aes(colour = news_q)) + 
+    geom_point()
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Calulating earnings surprise
 
