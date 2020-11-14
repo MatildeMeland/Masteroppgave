@@ -66,8 +66,8 @@ stock_data <- stock_data %>%
   ungroup %>%
   arrange(., Security) %>% 
   group_by(Security) %>% 
-  mutate(AV_O = PX_VOLUME/(rollsumr(PX_VOLUME, k = 30, fill = NA)/30),    # abnormal volume Odeen and DellaVigna
-         AV_D = log(((PX_VOLUME + lead(PX_VOLUME))/2)+1) - log(((rollsumr(PX_VOLUME, k = 41, fill = NA)-rollsumr(PX_VOLUME, k = 11, fill = NA))/30)+1)) %>% 
+  mutate(AV_ODEEN = PX_VOLUME/(rollsumr(PX_VOLUME, k = 30, fill = NA)/30),    # abnormal volume Odeen and DellaVigna
+         AV_DV = log(((PX_VOLUME + lead(PX_VOLUME))/2)+1) - log(((rollsumr(PX_VOLUME, k = 41, fill = NA)-rollsumr(PX_VOLUME, k = 11, fill = NA))/30)+1)) %>% 
   
   mutate(PX_5 = lag(PX_LAST, n=5)) %>% 
   
