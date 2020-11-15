@@ -53,21 +53,10 @@ stock_data <- merge(stock_data, Ticker_list, by = "Security") %>%  # merge with 
 rm(Ticker_list)
 
 
-# Calculate abnormal volume -----------------------------------------------
-# Odeen method
-for (i in unique(stock_data$Security)) {
-  stock_data$AV_ODEEN[stock_data$Security == i] <- stock_data$PX_VOLUME[stock_data$Security == i]/(rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 30, fill = NA)/30)
-}
-
-# DellaVigna formula
-for (i in unique(stock_data$Security)) {
-  stock_data$AV_DV[stock_data$Security == i] <- log(((stock_data$PX_VOLUME[stock_data$Security == i] + lead(stock_data$PX_VOLUME[stock_data$Security == i]))/2)+1) - log(((rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 41, fill = NA)-rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 11, fill = NA))/30)+1)
-}
-
 # Remove unnecessary variables
 rm(i, j, x, z)
 
-# Cumulative abnormal return ----------------------------------------------
+# Cumulative abnormal volume and return ----------------------------------------------
 
 # Create a value for total market cap for each industry and market return for each security.
 # Further use these values to calculate cumulative abnormal return
@@ -77,6 +66,8 @@ stock_data <- stock_data %>%
   ungroup %>%
   arrange(., Security) %>% 
   group_by(Security) %>% 
+  mutate(AV_ODEEN = PX_VOLUME/(rollsumr(PX_VOLUME, k = 30, fill = NA)/30),    # abnormal volume Odeen and DellaVigna
+         AV_DV = log(((PX_VOLUME + lead(PX_VOLUME))/2)+1) - log(((rollsumr(PX_VOLUME, k = 41, fill = NA)-rollsumr(PX_VOLUME, k = 11, fill = NA))/30)+1)) %>% 
   
   mutate(PX_5 = lag(PX_LAST, n=5)) %>% 
   
@@ -89,7 +80,6 @@ stock_data <- stock_data %>%
   
   mutate(CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
          -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))))
-
 
 
 # Creating control variables -------------------------------------------
