@@ -107,12 +107,16 @@ news_variables(news_other, news_other$read_time_total)
 
 
 # Comparing two types of data -------------------------------
-news_compare <- function(data1, data2, variable, normalized = "No"){
+news_compare <- function(data1, data2, variable, normalized = "No", interval = "daily"){
  
   plot1 <- data1
   plot2 <- data2
   plot1$plot <- data1[, variable]
   plot2$plot <- data2[, variable]
+  
+  #This is not done
+  plot1$time <- ifelse(interval == "weekly", strftime(plot1$date, format = "%V"), plot1$date) 
+  plot2$time <- ifelse(interval == "weekly", strftime(plot2$date, format = "%V"), plot2$date)
   
   temp1 <- plot1 %>% 
     select(date, plot) %>% 
@@ -145,7 +149,7 @@ news_compare <- function(data1, data2, variable, normalized = "No"){
 }
 
 
-## Not normalized
+## Not normalized, daily
 # Compare Corona to all other articles
 news_compare(news_corona, news_other, "pageviews")
 news_compare(news_corona, news_other, "read_time")
@@ -158,7 +162,7 @@ news_compare(news_corona, news_data, "read_time")
 news_compare(news_corona, news_data, "read_time_total")
 
 
-## Normalized
+## Normalized, daily
 # Compare Corona to all other articles
 news_compare(news_corona, news_other, "pageviews", "Yes")
 news_compare(news_corona, news_other, "read_time", "Yes")
@@ -169,6 +173,7 @@ news_compare(news_corona, news_data, "pageviews", "Yes")
 news_compare(news_corona, news_data, "read_time", "Yes")
 news_compare(news_corona, news_data, "read_time_total", "Yes")
 
+news_compare(news_corona, news_other, "pageviews", "No", "Weekly") # Not working yet
 
 
 # PERCENT of articles that were related to corona on a day 
