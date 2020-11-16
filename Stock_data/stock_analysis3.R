@@ -530,40 +530,6 @@ stock_data %>%
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 
-# Alternative EPS calculations --------------------------------------------
-library(data.table)
 
-
-EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2)
-EPS$Security <- gsub(" .*$", "", EPS$Security)
-
-EPS <- EPS[!is.na(EPS$IS_EPS) == T,] # 4512 observations
-EPS <- EPS[!is.na(EPS$date) == T,] # 3785 observations with a date
-EPS <- EPS[year(EPS$date) == 2020,] # 519 observations in 2020
-  
-Y2019_Q3 <- interval(ymd("2019-10-01"), ymd("2019-12-30"))
-Y2019_Q4 <- interval(ymd("2020-01-01"), ymd("2020-03-31"))
-Y2020_Q1 <- interval(ymd("2020-04-01"), ymd("2020-06-30"))
-Y2020_Q2 <- interval(ymd("2020-07-01"), ymd("2020-09-30"))
-
-EPS$Q[EPS$date %within% Y2019_Q3] <- "2019Q3"
-EPS$Q[EPS$date %within% Y2019_Q4] <- "2019Q4"
-EPS$Q[EPS$date %within% Y2020_Q1] <- "2020Q1"
-EPS$Q[EPS$date %within% Y2020_Q2] <- "2020Q2"
-
-
-EPS_alt <- acc_vars[, c(1,10,11,12)]
-
-EPS_alt <- EPS_alt[!is.na(EPS_alt$estimated) == T,] # 12235 observations
-EPS_alt <- EPS_alt[!EPS_alt$estimated == "#N/A N/A",] # 6833 observations
-EPS_alt <- EPS_alt[year(EPS_alt$date6) == 2020,] # 614 observations in 2020
-
-
-EPS_alt$Q[EPS_alt$date %within% Y2019_Q3] <- "2019Q3"
-EPS_alt$Q[EPS_alt$date %within% Y2019_Q4] <- "2019Q4"
-EPS_alt$Q[EPS_alt$date %within% Y2020_Q1] <- "2020Q1"
-EPS_alt$Q[EPS_alt$date %within% Y2020_Q2] <- "2020Q2"
-
-compare <- merge(EPS, EPS_alt, by = c("Security", "Q"), all.y = T)
 
 
