@@ -12,14 +12,14 @@ set.seed(123) # For reproducible results
 # Fix problem with mismatching dates
 stock_data <- 
   merge(stock_data[,-2], stock_data[,1:2], by=1:2, all.y = T) %>% 
-  select(-EQY_SH_OUT)
+  select(-c(EQY_SH_OUT,VOLATILITY_30D))
 
 colnames(stock_data)[2] <- "date"
 
 stock_data$date <- as.Date(stock_data$date, format="%d.%m.%Y")
 
 # Change structure of variables from character to numeric
-stock_data[,3:7] <- sapply(stock_data[,3:7],as.numeric)
+stock_data[,3:6] <- sapply(stock_data[,3:6],as.numeric)
 
 # Change NA to 0 in volume
 stock_data$PX_VOLUME[is.na(stock_data$PX_VOLUME)] <- 0
@@ -42,6 +42,7 @@ for (i in unique(stock_data$Security)) {
   }
 }
 
+
 # Create a column with industry specifications
 Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx") # list of companies with industry specification
 
@@ -50,39 +51,46 @@ colnames(Ticker_list)[5] <- "Security"
 stock_data <- merge(stock_data, Ticker_list, by = "Security") %>%  # merge with stock data
   select(-c(ticker, name, industri))
 
-rm(Ticker_list)
-
-
 # Remove unnecessary variables
-rm(i, j, x, z)
+rm(Ticker_list, i, j, x, z)
+
 
 # Cumulative abnormal volume and return ----------------------------------------------
-
-# Create a value for total market cap for each industry and market return for each security.
-# Further use these values to calculate cumulative abnormal return
 stock_data <- stock_data %>% 
   group_by(industry, date) %>%
-  mutate(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)-CUR_MKT_CAP) %>% 
+  mutate(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)-CUR_MKT_CAP, # total market cap for each day in each industy minus current company
+         val = PX_VOLUME*PX_LAST,                                 # value traded each day for each company
+         total_val = sum(val, na.rm = T)-val) %>%                 # total value traded each day in each industry minus current company
   ungroup %>%
   arrange(., Security) %>% 
   group_by(Security) %>% 
-  mutate(AV_ODEEN = PX_VOLUME/(rollsumr(PX_VOLUME, k = 30, fill = NA)/30),    # abnormal volume Odeen and DellaVigna
-         AV_DV = log(((PX_VOLUME + lead(PX_VOLUME))/2)+1) - log(((rollsumr(PX_VOLUME, k = 41, fill = NA)-rollsumr(PX_VOLUME, k = 11, fill = NA))/30)+1)) %>% 
-  
-  mutate(PX_5 = lag(PX_LAST, n=5)) %>% 
-  
-  mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1)) %>%        # market return for each industry
-  
-  mutate(daily_return = (PX_LAST-PX_OPEN)/PX_OPEN) %>%                    # daily return for each company
-  
-  mutate(CAR1 = c(rep(NA,times = 1), as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
-         -c(rep(NA,times = 1), as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "left")))) %>% 
-  
-  mutate(CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
-         -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))))
+  mutate(AV_DV = log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 30, fill = NA)/30),   # Abnormal volume for each company
+         PX_5 = lag(PX_LAST, n=5),                                                         # Price five days ago, needed later
+         MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1),                             # Market return, diff takes the difference between last observation and current
+         daily_return = (PX_LAST-PX_OPEN)/PX_OPEN,                                         # Daily return
+         
+         CAR1 = c(rep(NA,times = 1), as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
+         -c(rep(NA,times = 1), as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "left"))),
+         
+         CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left")))) %>% 
+  group_by(industry,date) %>%
+  mutate(AV_industy =  ifelse(mean(AV_DV, na.rm = T, fill = NA) == "NaN", NA, mean(AV_DV, na.rm = T, fill = NA))) %>% # Mean abnormal volume for industry
+  group_by(Security) %>% 
+  mutate(AV_alt = AV_DV - AV_industy) %>% # Abnormal volume minus mean industy abnormal volume
+  select(-c(AV_DV,daily_return, MR, val , total_val, total_mkt_cap, PX_OPEN, AV_industy)) # Remove variables used for calculations
 
 
 # Creating control variables -------------------------------------------
+
+# Price before corona
+# Some companies listed in 2020 will not have this value. Add an ifelse statement and use PX-5?
+for (i in unique(stock_data$Security)) {
+  stock_data$PX_normal[stock_data$Security == i] <- stock_data[stock_data$date == as.Date("2020-01-31") & stock_data$Security == i,]$PX_LAST
+}
+
+stock_data <- stock_data %>% group_by(Security) %>% mutate(PX_normal = ifelse(is.na(PX_normal),PX_5,PX_normal)) %>% 
+  select(-c(PX_5))
 
 # Varaible for month & day
 stock_data$month <- format(stock_data$date,"%B")
@@ -174,10 +182,10 @@ for (i in 1:length(EPS$Security)){
 }
 
 
+# Calculate estimated EPS using same quarter last year and a drift tem eaqual to the average change between quarters
 EPS <- EPS %>% group_by(Security) %>% 
-  mutate(ES_4d = ES_4 + c(NA, cumsum(na.omit(c(NA,diff(eps)))))/(1:n()-1))
-
-EPS <- EPS %>% filter(date > as.Date("2019-12-30"))
+  mutate(ES_4d = ES_4 + c(NA, cumsum(na.omit(c(NA,diff(eps)))))/(1:n()-1)) %>% 
+  filter(date > as.Date("2019-12-30"))
 
 # Combine earnings data with EPS data
 earning_data <- merge(earning_data, EPS[,-2] , by = c("Security", "quarter"))
@@ -211,6 +219,8 @@ stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
 stock_data <- merge(stock_data, earning_data, by = c("Security", "date")) %>% 
   mutate_at(c("actual","estimated"),as.numeric) # need to make values numeric
 
+# Remove SOFF as this company had extreme values
+stock_data <- stock_data %>% filter(Security != "SOFF")
 
 # Incorporating accounting variables
 
@@ -219,28 +229,30 @@ temp1 <- acc_vars %>% select(Security, date) %>%
   mutate(month = month(date),
          year = year(date) )
 
-# Number of analysts
+# Mean number of analysts
 temp2 <- acc_vars %>% select(Security, date, date5, TOT_ANALYST_REC) %>% 
   mutate(month = month(date5),year = year(date5) ) %>% 
   group_by(Security, year, month) %>% 
-  summarize(mean_analyst = mean(TOT_ANALYST_REC))
+  summarize(mean_analyst = mean(TOT_ANALYST_REC, na.rm = T))
 
-# Institutional ownership
+# Mean institutional ownership
 temp3 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>% 
   mutate(month = month(date3), year = year(date3) ) %>% 
   group_by(Security, year, month) %>% 
   summarize(mean_IO_share = mean(EQY_INST_PCT_SH_OUT))
 
-# Market to book and shares outstanding
+# Mean market to book and shares outstanding
 temp4 <- acc_vars %>% select(Security, date, MARKET_CAPITALIZATION_TO_BV, EQY_SH_OUT) %>% 
   mutate(month = month(date), year = year(date) ) %>% 
   group_by(Security, year, month) %>% 
   summarize(mean_MtoB = mean(MARKET_CAPITALIZATION_TO_BV),
             mean_share = mean(EQY_SH_OUT))
 
+# Merge all temporary dataframes togheter using reduce
 temp5 <- Reduce(function(x,y) merge(x = x, y = y, all.x = T), 
                 list(temp1, temp2, temp3, temp4)) %>% select(-c(month, year))
 
+# Combine with stock data
 stock_data <- merge(temp5, stock_data, by = c("Security", "date"))
 
 rm(temp1, temp2, temp3, temp4, temp5, acc_vars)
@@ -253,13 +265,12 @@ stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$mean_share
 
 assign("last.warning", NULL, envir = baseenv()) # removes warning messages
 
-# Remove SOFF as this company had extreme values
-stock_data <- stock_data %>% filter(Security != "SOFF")
+
 
 
 # Earnings surprise
 earnings_calc <- function(EPSactual, EPSestimated, variable) {
-  stock_data$ES <<- (EPSactual - EPSestimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
+  stock_data$ES <<- (EPSactual - EPSestimated)/ifelse(is.na(stock_data$PX_normal),stock_data$PX_LAST,stock_data$PX_normal)
   
   stock_data$ES_quantile <<- cut(stock_data$ES,
                                  breaks = quantile(stock_data$ES, seq(0, 1, l = 6), na.rm = T, type = 8),
@@ -289,10 +300,9 @@ earnings_calc <- function(EPSactual, EPSestimated, variable) {
 earnings_calc(stock_data$actual, stock_data$estimated, stock_data$CAR1)
 earnings_calc(stock_data$actual, stock_data$estimated, stock_data$CAR40)
 
-earnings_calc(stock_data$actual, stock_data$estimated, stock_data$AV_ODEEN) # Very random
-earnings_calc(stock_data$actual, stock_data$estimated, stock_data$AV_DV)
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$AV_alt) 
 
-earnings_calc(stock_data$actual, stock_data$estimated, stock_data$VOLATILITY_30D)
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$VOLATILITY_30D) # need to update later
 
 stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
@@ -301,8 +311,7 @@ stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$CAR1)
 earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$CAR40)
 
-earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$AV_ODEEN)
-earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$AV_DV)
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$AV_alt)
 
 earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$VOLATILITY_30D)
 
@@ -313,8 +322,7 @@ stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1)
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40)
 
-earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_ODEEN)
-earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_DV)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_alt)
 
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$VOLATILITY_30D)
 
@@ -430,32 +438,6 @@ waldtest(lm.fit) # can test for heteroskedacity?
 
 
 # Various plots -------------------------------------------------------------------
-# Plot of market over time
-test %>% ggplot(.,aes(x=date, y=total_mkt_cap/3435)) + #divide by 3435 to make it look similar to that of OSBX
-  ylim(550, 900) +
-  geom_line() +
-  ggtitle("Market over time for all stocks listed on OSBX") +
-  labs(y = "Normalized market value") +
-  theme_bw()
-
-# Plot of return over time
-test %>% ggplot(.,aes(x=date, y=return)) +
-  #ylim(550, 900) +
-  geom_line() +
-  ggtitle("Market return over time for all stocks listed on OSBX") +
-  labs(y = "Return") +
-  theme_bw()
-
-
-# Graph of trading volume over time
-stock_data %>% 
-  group_by(date) %>% 
-  summarize(total_volume = sum(PX_VOLUME)) %>% ungroup %>% 
-  ggplot(., aes(x=date, y=total_volume/10^6)) +
-  geom_line() +
-  ggtitle("Total trading volume over time") +
-  labs(y = "Million trades", x= "Date") +
-  theme_bw()
 
 # Graph of trading volume over time
 # Differentiating between company size.
@@ -482,21 +464,8 @@ grouped_df %>%
   labs(y = "Million trades") +
   theme_bw()
 
-# Could it be that most of this variation in volume is caused by Norwegian?
-tot_vol <- stock_data %>% 
-  group_by(Security) %>% 
-  summarize(total_volume = sum(PX_VOLUME))
-# No.. KOA has had most trades over the period.
 
-tot_vol2 <- stock_data %>% 
-  group_by(Security) %>%
-  summarize(avg_mkt_cap = mean(CUR_MKT_CAP, na.rm = T)) %>%
-  remove_missing() %>% 
-  mutate(Size_Level = cut(avg_mkt_cap,
-                          quantile(avg_mkt_cap, c(0, .25, .75, 1)),
-                          labels = c('Small', 'Medium', 'Big'),
-                          include.lowest = TRUE)) %>% 
-  merge(.,tot_vol, by = "Security")
+
 
 stock_data %>% 
   select(date, AV_ODEEN) %>% 
