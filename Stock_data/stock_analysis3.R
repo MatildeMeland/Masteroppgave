@@ -75,7 +75,7 @@ stock_data <- stock_data %>%
          CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
          -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left")))) %>% 
   group_by(industry,date) %>%
-  mutate(AV_industy =  AV_industy2 = ((sum(AV_DV, na.rm = T, fill = NA)-AV_DV)/(n()-ifelse(n() == sum(is.na(AV_DV)),1,0)-sum(is.na(AV_DV))))) %>% # Mean abnormal volume for industry
+  mutate(AV_industy = ((sum(AV_DV, na.rm = T, fill = NA)-AV_DV)/(n()-ifelse(n() == sum(is.na(AV_DV)),1,0)-sum(is.na(AV_DV))))) %>% # Mean abnormal volume for industry
   group_by(Security) %>% 
   mutate(AV_alt = AV_DV - AV_industy) %>% # Abnormal volume minus mean industy abnormal volume
   select(-c(AV_DV,daily_return, MR, val , total_val, total_mkt_cap, PX_OPEN, AV_industy)) # Remove variables used for calculations
@@ -119,12 +119,21 @@ stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.
 stock_data$news[is.na(stock_data$news)] <- 0
 
 stock_data <- stock_data[year(stock_data$date) == 2020,] # Remove days before 2020
+#stock_data <- stock_data[!month(stock_data$date) == 1,]
+#stock_data <- stock_data[!month(stock_data$date) == 2,]
+
+stock_data <- stock_data %>% ungroup() %>% group_by(month)%>% mutate(ranks=rank(news, ties.method = "first")) %>% 
+  mutate(news_Q2 = cut(ranks,
+                       breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
+                       labels = c("N1","N2","N3","N4","N5"),
+                       include.lowest = TRUE))
 
 ranks <- rank(stock_data$news, ties.method = "first")
 stock_data$news_q <- cut(ranks, 
-                         breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
-                         labels = c("N1","N2","N3","N4","N5"),
-                         include.lowest = TRUE)
+                   breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
+                   labels = c("N1","N2","N3","N4","N5"),
+                   include.lowest = TRUE)
+
 
 summary(stock_data$news_q) # Look at quantiles
 nrow(stock_data[stock_data$news == 0,]) # Count number of rows with 0 news
@@ -266,7 +275,7 @@ stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$mean_share
 assign("last.warning", NULL, envir = baseenv()) # removes warning messages
 
 
-
+#stock_data$news_q <- stock_data$news_Q2
 
 # Earnings surprise
 earnings_calc <- function(EPSactual, EPSestimated, variable) {
@@ -323,6 +332,8 @@ earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1)
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40)
 
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_alt)
+
+summary(stock_data)
 
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$VOLATILITY_30D)
 
