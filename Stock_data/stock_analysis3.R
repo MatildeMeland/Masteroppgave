@@ -75,7 +75,7 @@ stock_data <- stock_data %>%
          CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
          -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left")))) %>% 
   group_by(industry,date) %>%
-  mutate(AV_industy =  ifelse(mean(AV_DV, na.rm = T, fill = NA) == "NaN", NA, mean(AV_DV, na.rm = T, fill = NA))) %>% # Mean abnormal volume for industry
+  mutate(AV_industy =  AV_industy2 = ((sum(AV_DV, na.rm = T, fill = NA)-AV_DV)/(n()-ifelse(n() == sum(is.na(AV_DV)),1,0)-sum(is.na(AV_DV))))) %>% # Mean abnormal volume for industry
   group_by(Security) %>% 
   mutate(AV_alt = AV_DV - AV_industy) %>% # Abnormal volume minus mean industy abnormal volume
   select(-c(AV_DV,daily_return, MR, val , total_val, total_mkt_cap, PX_OPEN, AV_industy)) # Remove variables used for calculations
