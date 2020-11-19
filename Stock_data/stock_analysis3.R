@@ -135,8 +135,8 @@ stock_data$news_q <- cut(ranks,
                    include.lowest = TRUE)
 
 
-summary(stock_data$news_q) # Look at quantiles
-nrow(stock_data[stock_data$news == 0,]) # Count number of rows with 0 news
+#summary(stock_data$news_q) # Look at quantiles
+#nrow(stock_data[stock_data$news == 0,]) # Count number of rows with 0 news
 
 rm(news_data, news_data_formatted, ranks)
 
@@ -144,37 +144,17 @@ rm(news_data, news_data_formatted, ranks)
 # Dummy variable for earnings announcments and industy
 # Loading in data
 # Earnings data
-earning_data <- read_csv("Stock_data/earning_data.csv") %>% 
-  select(-c(X1,industri, industry))
+earning_data <- read_csv("Stock_data/earning_data2.csv") %>% 
+  select(-c(X1,title))
 
 # Change column names
 colnames(earning_data) <- c("Security", "Name", "date")
 
-# Remove duplicated dates with about 40 days in between
-earning_data <- earning_data %>% group_by(Security) %>% arrange(date, .by_group = TRUE) %>%  
-  mutate(DUP = ifelse(abs(difftime(date, lead(date))) <= 40,1,0)) %>% 
-  subset(DUP %in%  0| DUP %in%  NA) %>% select(-DUP)
 
-# remove shitty observations
-earning_data <-earning_data[!(earning_data$Security == "LSG" & earning_data$date == as.Date("2020-01-08")),]
-earning_data <-earning_data[!(earning_data$Security == "SBVG" & earning_data$date == as.Date("2020-03-24")),]
-
-
-# Make a column for quarters
-Y2019_Q3 <- interval(ymd("2019-10-01"), ymd("2019-12-30"))
-Y2019_Q4 <- interval(ymd("2020-01-01"), ymd("2020-03-31"))
-Y2020_Q1 <- interval(ymd("2020-04-01"), ymd("2020-06-30"))
-Y2020_Q2 <- interval(ymd("2020-07-01"), ymd("2020-09-30"))
-
-earning_data$quarter[earning_data$date %within% Y2019_Q3] <- "Q3"
-earning_data$quarter[earning_data$date %within% Y2019_Q4] <- "Q4"
-earning_data$quarter[earning_data$date %within% Y2020_Q1] <- "Q1"
-earning_data$quarter[earning_data$date %within% Y2020_Q2] <- "Q2"
-
-rm(Y2019_Q3, Y2019_Q4, Y2020_Q1, Y2020_Q2)
 
 # EPS data
-EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2) %>% 
+EPS <- read_excel("Stock_data/bloomber_EPS2.xlsx", sheet = 3) %>% 
+  select(c(Security, date, EPS_correct, quarter)) %>% 
   mutate(ES_4 = NA)
 
 EPS$Security <- gsub(" .*$", "", EPS$Security, ignore.case = T)
@@ -511,5 +491,27 @@ stock_data %>%
 
 
 
+# Old Earnings
+# Remove duplicated dates with about 40 days in between
+earning_data <- earning_data %>% group_by(Security) %>% arrange(date, .by_group = TRUE) %>%  
+  mutate(DUP = ifelse(abs(difftime(date, lead(date))) <= 40,1,0)) %>% 
+  subset(DUP %in%  0| DUP %in%  NA) %>% select(-DUP)
 
+# remove shitty observations
+earning_data <-earning_data[!(earning_data$Security == "LSG" & earning_data$date == as.Date("2020-01-08")),]
+earning_data <-earning_data[!(earning_data$Security == "SBVG" & earning_data$date == as.Date("2020-03-24")),]
+
+
+# Make a column for quarters
+Y2019_Q3 <- interval(ymd("2019-10-01"), ymd("2019-12-30"))
+Y2019_Q4 <- interval(ymd("2020-01-01"), ymd("2020-03-31"))
+Y2020_Q1 <- interval(ymd("2020-04-01"), ymd("2020-06-30"))
+Y2020_Q2 <- interval(ymd("2020-07-01"), ymd("2020-09-30"))
+
+earning_data$quarter[earning_data$date %within% Y2019_Q3] <- "Q3"
+earning_data$quarter[earning_data$date %within% Y2019_Q4] <- "Q4"
+earning_data$quarter[earning_data$date %within% Y2020_Q1] <- "Q1"
+earning_data$quarter[earning_data$date %within% Y2020_Q2] <- "Q2"
+
+rm(Y2019_Q3, Y2019_Q4, Y2020_Q1, Y2020_Q2)
 
