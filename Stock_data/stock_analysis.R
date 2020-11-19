@@ -152,8 +152,8 @@ earning_data <- read_csv("Stock_data/earning_data2.csv", locale = readr::locale(
 # Change column names
 colnames(earning_data) <- c("Security", "Name", "date", "title", "type")
 
-earning_data$Q <- ifelse(grepl("kvartal|quarter|første|andre|tredje|fjerde|first|second|third|fourth|interim|tertial|halvårs|halvårs|halvtårs|half|delårs", earning_data$title, ignore.case = T) | grepl("Q|H1|1H", earning_data$title, ignore.case = F), 1, 0)
-earning_data$A <- ifelse(grepl("annual|helårs|helår|årsrapport", earning_data$title, ignore.case = T) & !grepl("kvartal|quarter|interim|tertial|halvårs|halvårs|halvtårs|half|delårs", earning_data$title, ignore.case = T), 1, 0)
+earning_data$Q <- ifelse(grepl("kvartal|quarter|første|andre|tredje|fjerde|first|second|third|fourth|interim|tertial|halvårs|halvår|halvtårs|half|delårs", earning_data$title, ignore.case = T) | grepl("Q1|Q2|Q3|Q4|H1|1H|H2|2H", earning_data$title, ignore.case = F), 1, 0)
+earning_data$A <- ifelse(grepl("annual|helårs|helår|årsrapport|årsregnskap|årsmelding|year end|full year|year-end|års-", earning_data$title, ignore.case = T) & !grepl("kvartal|quarter|interim|tertial|halvårs|halvårs|halvtårs|half|delårs|semi-|Q1|Q2|Q3|Q4|H1|1H", earning_data$title, ignore.case = T), 1, 0)
 
 Y2019_Q3 <- interval(ymd("2019-10-01"), ymd("2019-12-30"))
 Y2019_Q4 <- interval(ymd("2020-01-01"), ymd("2020-03-31"))
@@ -169,7 +169,14 @@ rm(Y2019_Q3, Y2019_Q4, Y2020_Q1, Y2020_Q2)
 
 earning_data$quarter[earning_data$A == 1] <- "A"
 
-# Remove the annual reports that are released after a Q4
+# Manually reclassify
+earning_data$quarter[earning_data$Security == "GEOSME" & earning_data$type == "annual"] <- "A"
+
+earning_data$quarter[earning_data$Security == "WILS" & earning_data$date == "2020-02-19"] <- "Q4"
+earning_data$quarter[earning_data$Security == "SRBANK" & earning_data$date == "2020-02-05"] <- "Q4"
+earning_data$quarter[earning_data$Security == "MORG" & earning_data$date == "2020-01-30"] <- "Q4"
+
+# Identify the annual reports that are released after a Q4 report
 for (i in unique(earning_data$Security)) {
   sub <- earning_data[earning_data$Security == i,]
   Q4 <- sub[sub$quarter == "Q4",]
@@ -183,18 +190,46 @@ for (i in unique(earning_data$Security)) {
 
 rm(A, Q4, sub, i)
 
-earning_data <- earning_data[is.na(earning_data$remove),] %>% select(-c(remove, type, Q, A))
-test <- earning_data[]
+# Remove Sustainability report, independent audit and pilar 3 report
+earning_data$remove[earning_data$Security == "ASA" & earning_data$date == "2020-06-12"] <- 1
+earning_data$remove[earning_data$Security == "LIFEME" & earning_data$date == "2020-06-18"] <- 1
 
+earning_data$remove[earning_data$Security == "VISTIN" & earning_data$date == "2020-05-29"] <- 1
+
+earning_data$remove[earning_data$Security == "SVEG" & earning_data$date == "2020-04-28"] <- 1
+
+
+# Remove the annual reports that are released after a Q4 ++
+earning_data <- earning_data[is.na(earning_data$remove),] %>% select(-c(remove, type, Q, A))
+
+earning_data$quarter[earning_data$date %within% interval(ymd("2020-01-01"), ymd("2020-03-31"))] <- "Q4"
 
 # Remove duplicated dates with about 40 days in between
 earning_data <- earning_data %>% group_by(Security) %>% arrange(date, .by_group = TRUE) %>%  
   mutate(DUP = ifelse(abs(difftime(date, lead(date))) <= 40,1,0)) %>% 
   subset(DUP %in%  0| DUP %in%  NA) %>% select(-DUP)
 
+earning_data2 <- earning_data %>% group_by(Security) %>% arrange(date, .by_group = TRUE) %>%
+  mutate(DUP = ifelse(abs(difftime(date, lead(date))) == 0,1,0)) %>%
+  subset(DUP %in%  0| DUP %in%  NA) %>% select(-DUP) %>% arrange(date, .by_group = TRUE) %>%
+  mutate(diff = difftime(date, lag(date), units = c("days")),
+         DUP = ifelse(abs(difftime(date, lag(date), units = c("days"))) <= 40,1,0))
+
+earning_data2 <- earning_data %>% group_by(Security) %>% arrange(date, .by_group = TRUE) %>%
+  
+  mutate(DUP = ifelse(abs(difftime(date, lead(date))) == 0,1,0)) %>%
+  
+  subset(DUP %in%  0| DUP %in%  NA) %>% select(-DUP) %>% arrange(date, .by_group = TRUE) %>%
+  
+  mutate(diff = difftime(date, lag(date), units = c("days")),
+         
+         DUP = ifelse(quarter == lag(quarter) ,1,0))
+
+
+
 # remove shitty observations
-earning_data <-earning_data[!(earning_data$Security == "LSG" & earning_data$date == as.Date("2020-01-08")),]
-earning_data <-earning_data[!(earning_data$Security == "SBVG" & earning_data$date == as.Date("2020-03-24")),]
+earning_data <- earning_data[!(earning_data$Security == "LSG" & earning_data$date == as.Date("2020-01-08")),]
+earning_data <- earning_data[!(earning_data$Security == "SBVG" & earning_data$date == as.Date("2020-03-24")),]
 
 # Rename Annual reports to Q4?
 earning_data$quarter[earning_data$date %within% interval(ymd("2020-01-01"), ymd("2020-03-31"))] <- "Q4"
