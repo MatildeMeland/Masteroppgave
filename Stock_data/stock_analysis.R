@@ -184,7 +184,7 @@ for (i in unique(earning_data$Security)) {
 rm(A, Q4, sub, i)
 
 earning_data <- earning_data[is.na(earning_data$remove),] %>% select(-c(remove, type, Q, A))
-
+test <- earning_data[]
 
 
 # Remove duplicated dates with about 40 days in between
