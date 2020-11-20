@@ -67,7 +67,7 @@ stock_data <- stock_data %>%
   mutate(AV_DV = log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 30, fill = NA)/30),   # Abnormal volume for each company
          PX_5 = lag(PX_LAST, n=5),                                                         # Price five days ago, needed later
          MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1),                             # Market return, diff takes the difference between last observation and current
-         daily_return = (PX_LAST-PX_OPEN)/PX_OPEN,                                         # Daily return, might change to log returns instead
+         daily_return = log(PX_LAST/PX_OPEN),                                              # Daily return, might change to log returns instead
          
          CAR1 = c(rep(NA,times = 1), as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
          -c(rep(NA,times = 1), as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "left"))),
@@ -75,7 +75,7 @@ stock_data <- stock_data %>%
          CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
          -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))),
          
-         sdev = c(rep(NA,times = 9), as.numeric(rollapply(return, 10, sd ,partial = FALSE, align = "left"))),   # Volatility for each company
+         sdev = c(rep(NA,times = 9), as.numeric(rollapply(daily_return, 10, sd ,partial = FALSE, align = "left"))),   # Volatility for each company
          MR_sdev = c(rep(NA,times = 9), as.numeric(rollapply(MR, 10, sd ,partial = FALSE, align = "left"))),    # Market volatility
          abn_volatility = sdev - MR_sdev) %>%                                                                   # Abnormal volatility
   group_by(industry,date) %>%
