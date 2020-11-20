@@ -186,7 +186,7 @@ earning_data <- merge(earning_data, EPS[,-2] , by = c("Security", "quarter"))
 rm(EPS)
 #_VOLATILITY / ABNORMAL VOLUME - PLOT _______________________________________________________________________________________
 
-plot_data <- stock_data %>% select(-c(PX_LAST, PX_OPEN, PX_VOLUME, industry, CUR_MKT_CAP,gov)) %>% 
+plot_data <- stock_data %>% select(c(Security, date, abn_volatility, AV_alt, news_q)) %>% 
   drop_na()
 
 plot_data$Security <- gsub(" .*$", "", plot_data$Security, ignore.case = T)
@@ -195,7 +195,7 @@ plot_data$Security <- gsub(" .*$", "", plot_data$Security, ignore.case = T)
 #  mutate(time = ifelse(!is.na(lead(quarter, n = 2)), c(-2,-1,0,1,2,3,4,5),NA))
 
 
-plot_data <- left_join(plot_data, earning_data) %>% select(-c("Name")) %>% 
+plot_data <- left_join(plot_data, earning_data) %>% select(-c("Name")) %>% ungroup() %>% 
   mutate(time = ifelse(!is.na(lead(quarter, n = 2)), -2, 
                        ifelse(!is.na(lead(quarter, n = 1)), -1,  
                               ifelse(!is.na(quarter), 0, 
@@ -203,8 +203,8 @@ plot_data <- left_join(plot_data, earning_data) %>% select(-c("Name")) %>%
                                             ifelse(!is.na(lag(quarter, n = 2)), 2,
                                                    ifelse(!is.na(lag(quarter, n = 3)), 3,
                                                           ifelse(!is.na(lag(quarter, n = 4)), 4,
-                                                                 ifelse(!is.na(lag(quarter, n = 5)), 5,NA))))))))) %>% 
-  drop_na(time)
+                                                                 ifelse(!is.na(lag(quarter, n = 5)), 5,NA))))))))) #%>% 
+  #drop_na(time)
 
 
 
