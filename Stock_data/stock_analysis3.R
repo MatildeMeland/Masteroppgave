@@ -299,6 +299,11 @@ temp4 <- acc_vars %>% select(Security, date, MARKET_CAPITALIZATION_TO_BV, EQY_SH
   summarize(mean_MtoB = mean(MARKET_CAPITALIZATION_TO_BV),
             mean_share = mean(EQY_SH_OUT))
 
+for (i in unique(temp4$Security)) { # Fill in missing values
+  temp4$mean_MtoB[temp4$Security == i] <- na.locf(temp4$mean_MtoB[temp4$Security == i], na.rm = FALSE)
+  temp4$mean_share[temp4$Security == i] <- na.locf(temp4$mean_share[temp4$Security == i], na.rm = FALSE)
+}
+
 # Merge all temporary dataframes togheter using reduce
 temp5 <- Reduce(function(x,y) merge(x = x, y = y, all.x = T), 
                 list(temp1, temp2, temp3, temp4)) %>% select(-c(month, year))
