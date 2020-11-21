@@ -371,7 +371,7 @@ stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
 # Foster model 2
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1)
-earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR20)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40)
 
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_alt)
 
@@ -392,27 +392,81 @@ library(sandwich)
 control <- paste(c("mean_analyst", "mean_IO_share", "mean_MtoB", "CUR_MKT_CAP", "share_turnover"), collapse=' + ')
 
 
+# CAR[0,1] ----------------------------------------------------------------
+
 # CAR[0,1] regressions using all earnings quantiles and news quantiles
 
 # CAR[0,1] = a + a1ES + a2News_q + a3(ESxNews_q)
-lm.fit=lm(CAR1 ~ ES + news_q + ES*news_q, data=stock_data)
+lm.fit=lm(CAR1 ~ ES_quantile + news_q + ES_quantile*news_q, data=stock_data)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
+# CAR[2,40] = a + a1ES + a2News_q + a3(ESxNews_q)
+lm.fit=lm(CAR40 ~ ES_quantile + news_q + ES_quantile*news_q, data=stock_data)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
 # CAR[0,1] = a + a1ES + a2News_q + a3(ESxNews_q) + Control + Interaction
 lm.fit=lm(as.formula(paste("CAR1 ~ ES_quantile + news_q + ES_quantile*news_q +",control)) , data=stock_data)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
+# CAR[2,40] = a + a1ES + a2News_q + a3(ESxNews_q) + Control + Interaction
+lm.fit=lm(as.formula(paste("CAR40 ~ ES_quantile + news_q + ES_quantile*news_q +",control)) , data=stock_data)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
 # CAR[0,1] regressions using only top and bottom earnings surprise
-stock_data %>% filter(ES_quantile == "Q1" | news_q == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
-  lm(CAR1 ~ ES + TOP_N, data = .) -> lm.fit
+stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
+  lm(CAR1 ~ ES_quantile + TOP_N, data = .) -> lm.fit
 
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
-# CAR[0,1] = a + a1ES5 + a2News_q + a3(ES5xNews_q) 
 
+# CAR[2,40] regressions using only top and bottom earnings surprise
+stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
+  lm(CAR40 ~ ES_quantile + TOP_N, data = .) -> lm.fit
+
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+# CAR[0,1] = a + a1ES5 + a2News_q + a3(ES5xNews_q) 
+stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
+  lm(CAR1 ~ ES_quantile + TOP_N + ES_quantile*TOP_N, data = .) -> lm.fit
+
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
 # CAR[0,1] = a + a1ES5 + a2News_q + a3(ES5xNews_q) + Control + Interaction
+stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
+  lm(as.formula(paste("CAR1 ~ ES_quantile + TOP_N + ES_quantile*TOP_N +",control)), data = .) -> lm.fit
+
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+# CAR[0,40] = a + a1ES5 + a2News_q + a3(ES5xNews_q) + Control + Interaction
+stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
+  lm(as.formula(paste("CAR40 ~ ES_quantile + TOP_N + ES_quantile*TOP_N +",control)), data = .) -> lm.fit
+
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+
+# Abnormal volume ----------------------------------------------------------------
+stock_data$TOP_N = ifelse(stock_data$news_q == "N5", 1, 0)
+stock_data$ES_abs = abs(stock_data$ES)
+stock_data$ES_quantile2 <- cut(stock_data$ES_abs,
+                             breaks = quantile(stock_data$ES_abs, seq(0, 1, l = 6), na.rm = T, type = 8),
+                             labels = c("Q1","Q2","Q3","Q4","Q5"),
+                             include.lowest = TRUE)
+
+stock_data  %>%
+  filter(news_q == "N1" | news_q == "N5") %>%
+  group_by(news_q,ES_quantile2) %>%
+  summarise(mean = mean(AV_alt, na.rm = T)) %>% ungroup() %>%
+  na.omit(ES) %>% 
+  ggplot(., aes(x = ES_quantile2, y = mean, group = news_q)) +
+  geom_line(aes(colour = news_q)) + 
+  geom_point()
+
+# Abnormal volume[0,1], not sure of we have over two days currently
+lm.fit=lm(AV_alt ~ TOP_N, data=stock_data)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+
+# Other stuff -------------------------------------------------------------
+
 
 df <- stock_data %>% 
   select(news_q, ES, CUR_MKT_CAP, MARKET_CAPITALIZATION_TO_BV, mean_analyst, mean_IO_share, share_turnover) %>% 
@@ -443,26 +497,6 @@ summary(glm.fits)
 # Multinominal Logistic regression since dependent variable is a categorical variable.
 lm.fit=lm(news_q ~ ES+ CUR_MKT_CAP + MARKET_CAPITALIZATION_TO_BV + mean_analyst + mean_IO_share, data=stock_data)
 summary(lm.fit)
-
-# CAR = FE10 +NRANK10 + FE10*NRANK10
-
-lm.fit <- stock_data %>% 
-  select(news_q, ES, ES_quantile, CAR1, CAR40) %>% 
-  mutate(N5 = ifelse(stock_data$news_q == "N5", 1, 0),
-         Q5 = ifelse(stock_data$ES_quantile == "Q5", 1, 0)) %>% 
-  lm(CAR1 ~ Q5 + N5 + Q5*N5, data=.)
-
-summary(lm.fit)
-
-
-
-
-
-
-# Maybe it is easier to only focus on the top news group, and use similar method to DV
-# Make quantile based on wheter they are positive or negative?
-# - top 3 is positive, bottom 3 negative etc..
-
 
 
 
