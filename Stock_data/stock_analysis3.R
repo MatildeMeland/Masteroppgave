@@ -65,19 +65,41 @@ stock_data <- stock_data %>%
   arrange(., Security) %>% 
   group_by(Security) %>% 
   mutate(AV_DV = log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 30, fill = NA)/30),   # Abnormal volume for each company
+         AV_DV2 = log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 20, fill = NA)/20),   # Abnormal volume for each company
+         AV_DV3 = log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 10, fill = NA)/10),   # Abnormal volume for each company
+         
+         
          PX_5 = lag(PX_LAST, n=5),                                                         # Price five days ago, needed later
          MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1),                             # Market return, diff takes the difference between last observation and current
          daily_return = log(PX_LAST/PX_OPEN),                                              # Daily return, might change to log returns instead
          
-         CAR1 = c(rep(NA,times = 1), as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
-         -c(rep(NA,times = 1), as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "left"))),
+         CAR1 = c(as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "right")),rep(NA,times = 1)) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
+         -c(as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "right")),rep(NA,times = 1)),
          
-         CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
-         -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))),
+         CAR10 =  c(as.numeric(rollapply(1 + lead(daily_return, 2), 10, prod,partial = FALSE, align = "right")),rep(NA,times = 9)) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         -c(as.numeric(rollapply(1 + lead(MR,2), 10, prod,partial = FALSE, align = "right")),rep(NA,times = 9)),
+         
+         CAR20 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 20, prod,partial = FALSE, align = "right")),rep(NA,times = 19)) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         -c(as.numeric(rollapply(1 + lead(MR,2), 20, prod,partial = FALSE, align = "right")),rep(NA,times = 19)),         
+         
+         CAR30 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 30, prod,partial = FALSE, align = "right")),rep(NA,times = 29)) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         -c(as.numeric(rollapply(1 + lead(MR,2), 30, prod,partial = FALSE, align = "right")),rep(NA,times = 29)),
+         
+         CAR40 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 40, prod,partial = FALSE, align = "right")),rep(NA,times = 39)) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         -c(as.numeric(rollapply(1 + lead(MR,2), 40, prod,partial = FALSE, align = "right")),rep(NA,times = 39)),
+         
+         RVola = sqrt(252*daily_return^2),
+         RVolaM = sqrt(252*MR^2),
+         abn_volatility2 = RVola - RVolaM,
          
          sdev = c(rep(NA,times = 9), as.numeric(rollapply(daily_return, 10, sd ,partial = FALSE, align = "left"))),   # Volatility for each company
+         
          MR_sdev = c(rep(NA,times = 9), as.numeric(rollapply(MR, 10, sd ,partial = FALSE, align = "left"))),    # Market volatility
-         abn_volatility = sdev - MR_sdev) %>%                                                                   # Abnormal volatility
+         
+         abn_volatility1 = sdev - MR_sdev,
+         abn_volatility3 = (sdev-MR_sdev)*sqrt(252),
+         abn_volatility4 = abn_volatility3-lag(abn_volatility3)) %>%                                                                   # Abnormal volatility
+  
   group_by(industry,date) %>%
   mutate(AV_industy = ((sum(AV_DV, na.rm = T, fill = NA)-AV_DV)/(n()-ifelse(n() == sum(is.na(AV_DV)),1,0)-sum(is.na(AV_DV))))) %>% # Mean abnormal volume for industry
   group_by(Security) %>% 
@@ -190,6 +212,9 @@ rm(EPS)
 plot_data <- stock_data %>% select(c(Security, date, abn_volatility, AV_alt, news_q)) %>% 
   drop_na()
 
+plot_data <- stock_data %>% select(c(Security, date, abn_volatility1, abn_volatility2, abn_volatility3, abn_volatility4, CAR1, AV_alt, news_q)) %>% 
+  drop_na()
+
 plot_data$Security <- gsub(" .*$", "", plot_data$Security, ignore.case = T)
 
 plot_data <- left_join(plot_data, earning_data) %>% select(-c("Name")) %>% ungroup() %>% 
@@ -212,19 +237,9 @@ plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% s
   ggplot(.,aes(fill = news_q, x = time, y = m_AV)) +
   geom_bar(stat = "identity", position="dodge")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% summarize(m_AVol = mean(abn_volatility4)) %>% 
+  ggplot(.,aes(fill = news_q, x = time, y = m_AVol)) +
+  geom_bar(stat = "identity", position="dodge")
 
 #________________________________________________________________________________________________________
 
@@ -349,20 +364,18 @@ earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$CAR40)
 
 earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$AV_alt)
 
-earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$VOLATILITY_30D)
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$abn_volatility)
 
 stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
 
 # Foster model 2
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1)
-earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR20)
 
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_alt)
 
-summary(stock_data)
-
-earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$VOLATILITY_30D)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$abn_volatility1)
 
 stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
@@ -371,7 +384,35 @@ stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
 
 # Regression analysis -----------------------------------------------------
+# Libraries for coeftest
+library(lmtest)
+library(sandwich)
 
+# Control variables
+control <- paste(c("mean_analyst", "mean_IO_share", "mean_MtoB", "CUR_MKT_CAP", "share_turnover"), collapse=' + ')
+
+
+# CAR[0,1] regressions using all earnings quantiles and news quantiles
+
+# CAR[0,1] = a + a1ES + a2News_q + a3(ESxNews_q)
+lm.fit=lm(CAR1 ~ ES + news_q + ES*news_q, data=stock_data)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+
+# CAR[0,1] = a + a1ES + a2News_q + a3(ESxNews_q) + Control + Interaction
+lm.fit=lm(as.formula(paste("CAR1 ~ ES_quantile + news_q + ES_quantile*news_q +",control)) , data=stock_data)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+
+# CAR[0,1] regressions using only top and bottom earnings surprise
+stock_data %>% filter(ES_quantile == "Q1" | news_q == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
+  lm(CAR1 ~ ES + TOP_N, data = .) -> lm.fit
+
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+# CAR[0,1] = a + a1ES5 + a2News_q + a3(ES5xNews_q) 
+
+
+# CAR[0,1] = a + a1ES5 + a2News_q + a3(ES5xNews_q) + Control + Interaction
 
 df <- stock_data %>% 
   select(news_q, ES, CUR_MKT_CAP, MARKET_CAPITALIZATION_TO_BV, mean_analyst, mean_IO_share, share_turnover) %>% 
@@ -386,7 +427,7 @@ df <- stock_data %>%
 # for some reason the security SOFF has an earnings surprise of 514. There has to be some kind of dataerror here.
 # the real value of EPS from their report is -3,5 no -1001. 
 
-# need a value of share turnover in a given period leading up to the earnings announcement
+# need a value of share turnover in a given period leading up to the earnings announcement, has this been fixed?
 
 # Run linear regression on only the top category
 # Logit model for only top news group, need dummy variable for this 
@@ -403,14 +444,6 @@ summary(glm.fits)
 lm.fit=lm(news_q ~ ES+ CUR_MKT_CAP + MARKET_CAPITALIZATION_TO_BV + mean_analyst + mean_IO_share, data=stock_data)
 summary(lm.fit)
 
-
-df <- stock_data %>% 
-  select(news_q, ES, ES_quantile, CAR1, CAR40) %>% 
-  group_by(news_q) %>% 
-  summarize(ES = mean(ES)*100,
-            car1 = mean(CAR1)*100,
-            car40 = mean(CAR40, na.rm = T)*100)
-
 # CAR = FE10 +NRANK10 + FE10*NRANK10
 
 lm.fit <- stock_data %>% 
@@ -421,11 +454,8 @@ lm.fit <- stock_data %>%
 
 summary(lm.fit)
 
-# Robust standard errors
-library(lmtest)
-library(sandwich)
 
-coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
 
 
 
