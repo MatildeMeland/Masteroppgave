@@ -323,12 +323,12 @@ for (i in 1:length(temp$category)) {
 
 
 # create back-up file
-write.csv(data, file = "Peer_companies/earning_dataT.csv")
+write.csv(data, file = "Peer_companies/earning_data2.csv")
 
 # _______________________________________________________________________#
 
 ## Data cleaning
-data_dup <- read_csv("Peer_companies/earning_dataT.csv", locale = readr::locale(encoding = "latin1"))[,-1]
+data_dup <- read_csv("Peer_companies/earning_data2.csv", locale = readr::locale(encoding = "latin1"))[,-1]
 
 # Reformat the date
 data_dup$date <- gsub("T.+","",data_dup$date)   # remove minutes from date
@@ -380,8 +380,10 @@ data <- data[!grepl("preliminary|invitation", data$title, ignore.case = T), ]
 
 rm(temp, temp1, temp12, temp2, temp3)
 
+
+
 earning_data <- data %>% 
-  select(-c(X1,industri, industry, nr_attachments))
+  select(-c(industri, industry, nr_attachments))
 
 # Change column names
 colnames(earning_data) <- c("Security", "Name", "date", "title", "type")
