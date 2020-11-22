@@ -28,6 +28,9 @@ news_data <- news_data %>%
 news_corona <- news_data[grep("Covid-19|korona", news_data$subject, ignore.case = T), ] %>%  # Corona articles
   mutate(type = "corona")
 
+# Remove economic subjects
+news_data <- news_data[!grepl("økonomi|næringsliv", news_data$subject, ignore.case = T), ]
+
 sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
 
 news_other <- news_data[!grepl("Covid-19|korona", news_data$subject, ignore.case = T), ] %>% # Other atricles
@@ -201,6 +204,42 @@ ggplot(news_plot_table, mapping = aes(x = as.Date(date), y = clicks_sum, fill = 
 
 
 
+# Weekly data
+news_corona$week <- week(as.Date(news_corona$date, format = "%Y-%m-%d"))
+news_corona$year <- year(as.Date(news_corona$date, format = "%Y-%m-%d"))
+
+news_other$week <- week(as.Date(news_other$date, format = "%Y-%m-%d"))
+news_other$year <- year(as.Date(news_other$date, format = "%Y-%m-%d"))
+
+
+temp1 <- news_corona %>% 
+  select(date, year, week, pageviews, type) %>% 
+  group_by(year, week) %>% 
+  mutate(sum_page = sum(pageviews), articles_sum = n()) %>% 
+  mutate(pr_article = sum_page/articles_sum)
+  
+temp2 <- news_other %>% 
+  select(date, year, week, pageviews, type) %>% 
+  group_by(year, week) %>% 
+  mutate(sum_page = sum(pageviews), articles_sum = n()) %>% 
+  mutate(pr_article = sum_page/articles_sum)
+  
+temp <- rbind(temp1, temp2) %>% group_by(week) %>% filter(!duplicated(pr_article))
+  
+  temp %>% 
+    ggplot(., aes(x = as.Date(date), y = pr_article, color = type)) +
+    geom_line() +
+    labs(title = "Total Pageviews of Corona Articles (pink) and All Other Articles (blue) by NRK (MILL)",
+         subtitle = "October 2019 - September 2020",
+         x = "Date", y = "Million pageviews") +
+    scale_x_date(date_labels = "%d %b %Y", date_breaks = "1 month") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+
+
+
+
 
 
 
@@ -242,8 +281,8 @@ news_variables(news_finance, news_finance$read_time_total) # Total read time on 
 
 
 
-
-
+# Weekly data
+news_data_formatted <- merge(temp[temp$type == "corona",], temp[temp$type == "other",])
 
 # Ecnonometric analysis
 # Create dataset
