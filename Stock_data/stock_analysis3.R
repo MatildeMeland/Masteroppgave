@@ -82,23 +82,23 @@ stock_data <- stock_data %>%
          CAR10 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 10, prod,partial = FALSE, align = "right")),rep(NA,times = 9)) # Cumulative abnormal return (CAR) for each company in each industry first 10 days
                 -c(as.numeric(rollapply(1 + lead(MR,2), 10, prod,partial = FALSE, align = "right")),rep(NA,times = 9)),
          
-         CAR20 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 20, prod,partial = FALSE, align = "right")),rep(NA,times = 19)) # Cumulative abnormal return (CAR) for each company in each industry first 20 days
+         CAR20 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 20, prod, partial = FALSE, align = "right")),rep(NA,times = 19)) # Cumulative abnormal return (CAR) for each company in each industry first 20 days
                 -c(as.numeric(rollapply(1 + lead(MR,2), 20, prod,partial = FALSE, align = "right")),rep(NA,times = 19)),         
          
-         CAR30 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 30, prod,partial = FALSE, align = "right")),rep(NA,times = 29)) # Cumulative abnormal return (CAR) for each company in each industry first 30 days
+         CAR30 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 30, prod, partial = FALSE, align = "right")),rep(NA,times = 29)) # Cumulative abnormal return (CAR) for each company in each industry first 30 days
                 -c(as.numeric(rollapply(1 + lead(MR,2), 30, prod,partial = FALSE, align = "right")),rep(NA,times = 29)),
          
-         CAR40 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 40, prod,partial = FALSE, align = "right")),rep(NA,times = 39)) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         CAR40 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 40, prod, partial = FALSE, align = "right")),rep(NA,times = 39)) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
                 -c(as.numeric(rollapply(1 + lead(MR,2), 40, prod,partial = FALSE, align = "right")),rep(NA,times = 39)),
          
          abn_volatility1 = c(rep(NA,times = 9), as.numeric(rollapply(daily_return, 10, sd ,partial = FALSE, align = "left")))   # Volatility for each company
-                          -c(rep(NA,times = 9), as.numeric(rollapply(MR, 10, sd ,partial = FALSE, align = "left"))),            # Market volatility
+                          -c(rep(NA,times = 9), as.numeric(rollapply(MR, 10, sd, partial = FALSE, align = "left"))),            # Market volatility
          
          abn_volatility2 = c(rep(NA,times = 19), as.numeric(rollapply(daily_return, 20, sd ,partial = FALSE, align = "left")))   # Volatility for each company
-                          -c(rep(NA,times = 19), as.numeric(rollapply(MR, 20, sd ,partial = FALSE, align = "left"))),            # Market volatility
+                          -c(rep(NA,times = 19), as.numeric(rollapply(MR, 20, sd, partial = FALSE, align = "left"))),            # Market volatility
          
          abn_volatility3 = c(rep(NA,times = 29), as.numeric(rollapply(daily_return, 30, sd ,partial = FALSE, align = "left")))   # Volatility for each company
-                          -c(rep(NA,times = 29), as.numeric(rollapply(MR, 30, sd ,partial = FALSE, align = "left"))),            # Market volatility
+                          -c(rep(NA,times = 29), as.numeric(rollapply(MR, 30, sd, partial = FALSE, align = "left"))),            # Market volatility
          
          abn_volatility4 = abn_volatility3-lag(abn_volatility3)) %>%                                                                   # Abnormal volatility
   
@@ -106,7 +106,7 @@ stock_data <- stock_data %>%
   mutate(AV_industy = ((sum(AV_DV, na.rm = T, fill = NA)-AV_DV)/(n()-ifelse(n() == sum(is.na(AV_DV)),1,0)-sum(is.na(AV_DV))))) %>% # Mean abnormal volume for industry
   group_by(Security) %>% 
   mutate(AV_alt = AV_DV - AV_industy) %>% # Abnormal volume minus mean industy abnormal volume
-  select(-c(AV_DV,daily_return, MR, val , total_val, total_mkt_cap, PX_OPEN, AV_industy)) # Remove variables used for calculations
+  select(-c(AV_DV,daily_return, MR, val , total_val, total_mkt_cap, PX_OPEN, AV_industy, "year(date)", "month(date)")) # Remove variables used for calculations
 
 
 # Creating control variables -------------------------------------------
@@ -125,14 +125,14 @@ stock_data$month <- format(stock_data$date,"%B")
 stock_data$day <- format(stock_data$date,"%A")
 
 # Dummy variable for government announcments
-government_tv <- read_csv("Stock_data/government_tv.csv")[,-1] # Load data 
+government_tv <- read_csv("Stock_data/government_tv.csv", locale = readr::locale(encoding = "latin1"))[,-1] # Load data 
 
 stock_data$gov <- ifelse(stock_data$date %in% government_tv$date, 1, 0)
 
 rm(government_tv) # remove government_tv dataset
 
 # Variable for amount of corona news
-news_data <- read_csv("Stock_data/news_corona.csv")[,-1] # Load data 
+news_data <- read_csv("Stock_data/news_corona.csv", locale = readr::locale(encoding = "latin1"))[,-1] # Load data 
 
 news_data_formatted <- news_data %>% 
   select(date, pageviews) %>% 
@@ -147,20 +147,59 @@ stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.
 stock_data$news[is.na(stock_data$news)] <- 0
 
 stock_data <- stock_data[year(stock_data$date) == 2020,] # Remove days before 2020
-#stock_data <- stock_data[!month(stock_data$date) == 1,]
-#stock_data <- stock_data[!month(stock_data$date) == 2,]
-
-stock_data <- stock_data %>% ungroup() %>% group_by(month)%>% mutate(ranks=rank(news, ties.method = "first")) %>% 
-  mutate(news_Q2 = cut(ranks,
-                       breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
-                       labels = c("N1","N2","N3","N4","N5"),
-                       include.lowest = TRUE))
 
 ranks <- rank(stock_data$news, ties.method = "first")
-stock_data$news_q <- cut(ranks, 
-                   breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
-                   labels = c("N1","N2","N3","N4","N5"),
-                   include.lowest = TRUE)
+stock_data$news_nojan <- cut(ranks, 
+                           breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
+                           labels = c("N1","N2","N3","N4","N5"),
+                           include.lowest = TRUE)
+
+stock_data <- stock_data[!month(stock_data$date) == 1,]
+# stock_data <- stock_data[!month(stock_data$date) == 2,]
+
+stock_data <- stock_data %>% ungroup() %>% group_by(month)%>% mutate(ranks=rank(news, ties.method = "first")) %>% 
+  mutate(news_month = cut(ranks,
+                          breaks = quantile(ranks, seq(0, 1, l = 6), type = 7),
+                          labels = c("N1","N2","N3","N4","N5"),
+                          include.lowest = TRUE))
+
+
+stock_data <- stock_data %>% ungroup() %>% group_by(week(date))%>% mutate(ranks=rank(news, ties.method = "first")) %>% ungroup() %>% 
+  mutate(news_week = cut(ranks,
+                         breaks = quantile(ranks, seq(0, 1, l = 6), type = 7),
+                         labels = c("N1","N2","N3","N4","N5"),
+                         include.lowest = TRUE))
+
+ranks <- rank(stock_data$news, ties.method = "first")
+stock_data$news_q5 <- cut(ranks, 
+                          breaks = quantile(ranks, seq(0, 1, l = 6), type = 7),
+                          labels = c("N1","N2","N3","N4","N5"),
+                          include.lowest = TRUE)
+
+stock_data$news_q4 <- cut(ranks, 
+                          breaks = quantile(ranks, seq(0, 1, l = 5), type = 7),
+                          labels = c("N1","N2","N4","N5"),
+                          include.lowest = TRUE)
+
+stock_data$news_q3 <- cut(ranks, 
+                          breaks = quantile(ranks, seq(0, 1, l = 4), type = 7),
+                          labels = c("N1", "N3", "N5"),
+                          include.lowest = TRUE)
+
+stock_data$news_q6 <- cut(ranks, 
+                          breaks = quantile(ranks, seq(0, 1, l = 7), type = 7),
+                          labels = c("N1","N2","N3","N3.5","N4","N5"),
+                          include.lowest = TRUE)
+
+stock_data$news_q7 <- cut(ranks, 
+                          breaks = quantile(ranks, seq(0, 1, l = 8), type = 7),
+                          labels = c("N1","N2","N2.5","N3","N3.5","N4","N5"),
+                          include.lowest = TRUE)
+
+
+
+
+
 
 
 #summary(stock_data$news_q) # Look at quantiles
@@ -186,9 +225,8 @@ EPS <- read_excel("Stock_data/bloomber_EPS2.xlsx", sheet = 3) %>%
   mutate(ES_4 = NA)
 
 EPS$Security <- gsub(" .*$", "", EPS$Security, ignore.case = T)
-
-
 colnames(EPS)[3] <- "eps"
+
 
 # EPS last year
 for (i in 1:length(EPS$Security)){
@@ -326,7 +364,7 @@ assign("last.warning", NULL, envir = baseenv()) # removes warning messages
 #stock_data$news_q <- stock_data$news_Q2
 
 # Earnings surprise
-earnings_calc <- function(EPSactual, EPSestimated, variable) {
+earnings_calc <- function(EPSactual, EPSestimated, variable, news) {
   stock_data$ES <<- (EPSactual - EPSestimated)/ifelse(is.na(stock_data$PX_normal),stock_data$PX_LAST,stock_data$PX_normal)
   
   stock_data$ES_quantile <<- cut(stock_data$ES,
@@ -335,6 +373,7 @@ earnings_calc <- function(EPSactual, EPSestimated, variable) {
                                  include.lowest = TRUE)
   
   stock_data$plot <- variable
+  stock_data$news_q <- news
   
   # plot
   stock_data %>% select(news_q, ES_quantile, plot) %>%
@@ -377,6 +416,10 @@ stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
 # Foster model 2
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1, stock_data$news_month)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1)
+
+
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40)
 
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_alt)
@@ -457,6 +500,7 @@ stock_data$ES_quantile2 <- cut(stock_data$ES_abs,
                              labels = c("Q1","Q2","Q3","Q4","Q5"),
                              include.lowest = TRUE)
 
+
 stock_data  %>%
   filter(news_q == "N1" | news_q == "N5") %>%
   group_by(news_q,ES_quantile2) %>%
@@ -479,6 +523,7 @@ coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
 
 # Volatility --------------------------------------------------------------
+stock_data$news_q <- stock_data$news_month
 
 stock_data  %>%
   filter(news_q == "N1" | news_q == "N5") %>%
