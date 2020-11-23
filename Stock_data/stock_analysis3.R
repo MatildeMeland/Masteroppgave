@@ -575,7 +575,7 @@ coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 summary(lm.fit)
 
 # Reg 2: AV = TOP_N + ES_quantiles
-lm.fit=lm(AV_alt ~ TOP_N * ES_quantile2, data=stock_data)
+lm.fit=lm(AV_alt ~ TOP_N + ES_quantile2, data=stock_data)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 summary(lm.fit)
 
@@ -590,12 +590,11 @@ stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(TOP_N = 
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 summary(lm.fit)
 
-# Reg 5: CAR = N_TOP + ES_continous
+# Reg 5: AV = N_TOP + ES_continous
 stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(TOP_N = ifelse(news_q == 5, 1, 0)) %>% 
   lm(AV_alt ~ I(TOP_N) + ES_abs + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30 , data = .) -> lm.fit
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 summary(lm.fit)
-
 
 
 
