@@ -476,74 +476,86 @@ control <- paste(c("mean_analyst", "mean_IO_share", "mean_MtoB", "CUR_MKT_CAP", 
 stock_data$news_q <- as.numeric(stock_data$news_q5)
 stock_data$ES_quantile <- as.numeric(stock_data$ES_quantile)
 
-lm.fit=lm(CAR1 ~ ES_quantile + ES_quantile*news_q + month + ES_quantile*mean_analyst + ES_quantile*mean_IO_share + ES_quantile*MktC_decile+ES_quantile*BtoM_decile , data=stock_data)
-coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC1"))
+# Reg1 : CAR = new_q + ES_quantiles
+lm.fit <- lm(CAR1 ~ news_q + ES_quantile, data = stock_data)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
+
+# Reg2 : CAR = new_q + ES_quantiles + control variables*ES_quantile
+lm.fit <- lm(CAR1 ~ news_q*ES_quantile + ES_quantile + month + ES_quantile*(MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30), data = stock_data)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+
+# Reg3 : CAR = new_q + ES_continous + control variables
+lm.fit <- lm(CAR1 ~ news_q + ES + month + (MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30), data = stock_data)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+
+# Reg4: CAR = N_TOP + ES_TOP + control variables
 stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% mutate(TOP_N = ifelse(news_q == 5, 1, 0)) %>% 
-  lm(CAR1 ~ I(ES_quantile) + I(TOP_N), data = .) -> lm.fit
-
-# CAR[0,1] regressions using all earnings quantiles and news quantiles
-# CAR[0,1] = a + a1ES + a2News_q + a3(ESxNews_q)
-lm.fit=lm(CAR1 ~ ES_quantile + news_q + ES_quantile*news_q, data=stock_data)
+  lm(CAR1 ~ I(ES_quantile)*I(TOP_N) + month + I(ES_quantile)*(MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30) , data = .) -> lm.fit
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
-# CAR[0,1] = a + a1ES + a2News_q + a3(ESxNews_q) + Control + Interaction
-lm.fit=lm(as.formula(paste("CAR1 ~ news_q + ES_quantile + ES_quantile*news_q +",control)) , data=stock_data)
+
+# Reg 5: CAR = N_TOP + ES_continous + control variables
+stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% mutate(TOP_N = ifelse(news_q == 5, 1, 0)) %>% 
+  lm(CAR1 ~ I(TOP_N) + ES  , data = .) -> lm.fit
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
-# CAR[0,1] regressions using only top and bottom earnings surprise
-stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
-  lm(as.formula(paste("CAR40 ~ TOP_N + ES_quantile + month + ",control)), data = .) -> lm.fit
-
-coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
-
-# CAR[0,1] = a + a1ES5 + a2News_q + a3(ES5xNews_q) 
-stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
-  lm(CAR1 ~ ES_quantile + TOP_N + ES_quantile*TOP_N + month, data = .) -> lm.fit
-
-coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
-
-# CAR[0,1] = a + a1ES5 + a2News_q + a3(ES5xNews_q) + Control + Interaction
-stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
-  lm(as.formula(paste("CAR1 ~ ES_quantile + TOP_N + ES_quantile*TOP_N +",control)), data = .) -> lm.fit
-
-coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
 
 # CAR[2,40] ---------------------------------------------------------------
 
-
-# CAR[2,40] = a + a1ES + a2News_q + a3(ESxNews_q)
-lm.fit=lm(CAR40 ~ ES_quantile + news_q + ES_quantile*news_q, data=stock_data)
+# Reg 1:
+lm.fit = lm(CAR40 ~ ES_quantile + news_q, data = stock_data)
+summary(lm.fit)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
-# CAR[2,40] = a + a1ES + a2News_q + a3(ESxNews_q) + Control + Interaction
-lm.fit=lm(as.formula(paste("CAR40 ~ ES_quantile + news_q + ES_quantile*news_q +",control)) , data=stock_data)
+
+# Reg 2:
+lm.fit=lm(as.formula(paste("CAR40 ~ ES_quantile*news_q + ", control, " + ", control2)) , data = stock_data)
+summary(lm.fit)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
-# CAR[2,40] regressions using only top and bottom earnings surprise
-stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
-  lm(CAR40 ~ ES_quantile + TOP_N, data = .) -> lm.fit
 
+# Reg 3:
+lm.fit=lm(as.formula(paste("CAR40 ~ ES + news_q + ", control)) , data = stock_data)
+summary(lm.fit)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
-# CAR[2,40] = a + a1ES5 + a2News_q + a3(ES5xNews_q) + Control + Interaction
-stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
-  lm(as.formula(paste("CAR40 ~ ES_quantile + TOP_N + ES_quantile*TOP_N +",control)), data = .) -> lm.fit
 
+# Reg 4
+lm.fit <- stock_data %>% mutate(N_top = ifelse(news_q == 5, 1, 0)) %>% mutate(ES_top = ifelse(ES_quantile == 5, 1, 0)) %>%  
+  lm(paste("CAR40 ~ I(ES_top) * I(N_top) + ", control, " + ", control3), data = .)
+summary(lm.fit)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+
+# Reg 5
+lm.fit <- stock_data %>% mutate(N_top = ifelse(news_q == 5, 1, 0)) %>% 
+  lm(paste(CAR40 ~ ES * I(N_top)), data = .)
+summary(lm.fit)
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+
+# Reg 5.2 - Continous with middle removed
+lm.fit <- stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(News_top = ifelse(news_q == "N5", 1, 0)) %>% 
+  lm(paste("CAR40 ~ ES * I(News_top) +", control), data = .)
+summary(lm.fit)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
 
 
 # Abnormal volume ----------------------------------------------------------------
-stock_data$TOP_N = ifelse(stock_data$news_q == "N5", 1, 0)
+stock_data$news_q <- as.numeric(stock_data$news_q5)
+stock_data$TOP_N = ifelse(stock_data$news_q == 5, 1, 0)
 stock_data$ES_abs = abs(stock_data$ES)
 stock_data$ES_quantile2 <- cut(stock_data$ES_abs,
                              breaks = quantile(stock_data$ES_abs, seq(0, 1, l = 6), na.rm = T, type = 8),
                              labels = c("Q1","Q2","Q3","Q4","Q5"),
                              include.lowest = TRUE)
 
-stock_data$news_q <- as.numeric(stock_data$news_q5)
+
 stock_data$ES_quantile2 <- as.numeric(stock_data$ES_quantile2)
 
 stock_data  %>%
@@ -557,19 +569,32 @@ stock_data  %>%
 
 # Abnormal volume[0,1], not sure of we have over two days currently
 
-# AV = TOP_N + ES_quantile2
-lm.fit=lm(AV_alt ~ TOP_N + ES_quantile2, data=stock_data)
+# Reg 1: AV = new_q + ES_quantiles
+lm.fit=lm(AV_alt ~ news_q + ES_quantile2, data=stock_data)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+summary(lm.fit)
 
-# AV = TOP_N + ES_quantile2 + TOP_N + control
-lm.fit=lm(as.formula(paste("AV_alt ~ TOP_N + ES_quantile2 + month +",control)), data=stock_data)
+# Reg 2: AV = TOP_N + ES_quantiles
+lm.fit=lm(AV_alt ~ TOP_N * ES_quantile2, data=stock_data)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+summary(lm.fit)
 
-# AV using only q1 and q5
-stock_data %>% filter(ES_quantile2 == "Q1" | ES_quantile2 == "Q5") %>% mutate(TOP_N = ifelse(news_q == "N5", 1, 0)) %>% 
-  lm(as.formula(paste("AV_DV2 ~ TOP_N + ES_quantile2 + month + day +",control)), data = .) -> lm.fit
-
+# Reg 3: AV = TOP_N + ES_quantiles + control variables*ES_quantile
+lm.fit=lm(AV_alt ~ TOP_N + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30, data=stock_data)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+summary(lm.fit)
+
+# Reg 4: AV= TOP_N + ES_TOP + control variables (only top and bottom observations)
+stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(TOP_N = ifelse(news_q == 5, 1, 0)) %>% 
+  lm(AV_alt ~ I(TOP_N) + I(ES_quantile) + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30 , data = .) -> lm.fit
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+summary(lm.fit)
+
+# Reg 5: CAR = N_TOP + ES_continous
+stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(TOP_N = ifelse(news_q == 5, 1, 0)) %>% 
+  lm(AV_alt ~ I(TOP_N) + ES_abs + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30 , data = .) -> lm.fit
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+summary(lm.fit)
 
 
 
