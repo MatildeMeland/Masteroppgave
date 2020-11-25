@@ -2,6 +2,8 @@ library(readxl)
 library(tidyverse)
 library(lubridate)
 library(stringr)
+library(lmtest)
+library(sandwich)
 
 # Loading and preparing data ----------------------------------------------
 news_data <- read_xlsx("NRK/Artikler NRK.no oktober 2019-september 2020.xlsx") %>% 
@@ -29,7 +31,7 @@ news_corona <- news_data[grep("Covid-19|korona", news_data$subject, ignore.case 
   mutate(type = "corona")
 
 # Remove economic subjects
-news_data <- news_data[!grepl("økonomi|næringsliv", news_data$subject, ignore.case = T), ]
+#news_data <- news_data[!grepl("økonomi|næringsliv", news_data$subject, ignore.case = T), ]
 
 sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
 
@@ -225,10 +227,12 @@ temp2 <- news_other %>%
   mutate(pr_article = sum_page/articles_sum)
   
 temp <- rbind(temp1, temp2) %>% group_by(week) %>% filter(!duplicated(pr_article))
-  
-  temp %>% 
-    ggplot(., aes(x = as.Date(date), y = pr_article, color = type)) +
-    geom_line() +
+
+rm(temp1, temp2)
+
+temp %>% 
+  ggplot(., aes(x = as.Date(date), y = sum_page, color = type)) +
+  geom_line() +
     labs(title = "Total Pageviews of Corona Articles (pink) and All Other Articles (blue) by NRK (MILL)",
          subtitle = "October 2019 - September 2020",
          x = "Date", y = "Million pageviews") +
@@ -281,31 +285,42 @@ news_variables(news_finance, news_finance$read_time_total) # Total read time on 
 
 
 
-# Weekly data
-news_data_formatted <- merge(temp[temp$type == "corona",], temp[temp$type == "other",])
-
 # Ecnonometric analysis
 # Create dataset
 news_data <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
-news_corona <- read.csv("Stock_data/news_corona.csv") %>%  select(-X)
-news_not_corona <- read.csv("Stock_data/news_not_corona.csv") %>%  select(-X)
+news_corona <- read.csv("Stock_data/news_corona.csv")[,-1] %>% 
+  mutate(type = "corona",
+         day = wday(date, label = T), 
+         month = month(date, label = T),
+         year = year(date)) %>% 
+  filter(!day == "Sat" & !day == "Sun" & !month == "Jan")
+
+news_other <- read.csv("Stock_data/news_not_corona.csv")[,-1] %>% 
+  mutate(type = "other",
+         day = wday(date, label = T), 
+         month = month(date, label = T),
+         year = year(date)) %>% 
+  filter(!day == "Sat" & !day == "Sun" & !month == "Jan" & year == "2020")
 
 
 # Formatting newsdata for regression 
-news_data_formatted1 <- news_not_corona %>% 
-  select(date, pageviews) %>% 
-  mutate(nr_articles = n_distinct(date)) %>% 
+news_data_formatted1 <- news_other %>% 
+  select(date, pageviews, read_time_total) %>% 
   group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
-  mutate(clicks_article = clicks.sum/articles.sum)
+  summarise(clicks_sum = sum(pageviews), 
+            read_sum = sum(read_time_total),
+            articles_sum = n()) %>%
+  mutate(clicks_article = clicks_sum/articles_sum,
+         read_article = read_sum/articles_sum)
 
 news_data_formatted2 <- news_corona %>% 
-  select(date, pageviews) %>% 
-  mutate(nr_articles = n_distinct(date)) %>% 
+  select(date, pageviews, read_time_total) %>% 
   group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>%
-  mutate(clicks_article = clicks.sum/articles.sum)
-
+  summarise(clicks_sum = sum(pageviews), 
+            read_sum = sum(read_time_total),
+            articles_sum = n()) %>%
+  mutate(clicks_article = clicks_sum/articles_sum,
+         read_article = read_sum/articles_sum)
 
 
 # Merge corona and not corona data
@@ -314,32 +329,38 @@ rm(news_data_formatted1, news_data_formatted2)
 
 news_data_formatted$date <- as.Date(news_data_formatted$date) # Make sure it is formated as a date
 
-# Make control variables
-news_data_formatted$month <- format(news_data_formatted$date,"%B")
-news_data_formatted$day <- format(news_data_formatted$date,"%A")
-
 # Make variable for gov announcments
 government_tv <- read_csv("Stock_data/government_tv.csv")[,-1] # Load data 
 
 news_data_formatted$gov <- ifelse(news_data_formatted$date %in% government_tv$date, 1, 0)
 
 # Drop some columns
-news_data_formatted <- 
-  news_data_formatted %>% 
-  select(-clicks.sum.x, -articles.sum.x, -clicks.sum.y, -articles.sum.y)
+news_data_formatted <- news_data_formatted %>% 
+  select(-clicks_sum.x, -articles_sum.x, -clicks_sum.y, -articles_sum.y, -read_sum.x, -read_sum.y)
 
 news_data_formatted$clicks_article.y[is.na(news_data_formatted$clicks_article.y)] <- 0
+news_data_formatted$read_article.y[is.na(news_data_formatted$read_article.y)] <- 0
+
 
 #change of column names
-colnames(news_data_formatted)[2:3] <- c("other_ca", "corona_ca")
+colnames(news_data_formatted)[2:5] <- c("other_ca", "other_ra", "corona_ca", "corona_ra")
 
+# Control variables
+news_data_formatted$month <- format(news_data_formatted$date, "%B")
+news_data_formatted$day <- format(news_data_formatted$date, "%A")
 
 
 # Linear model and summary statistics
 
-summary(mod1 <- lm(log(1 +other_ca) ~ log(1 + corona_ca) + month + day, data=news_data_formatted))
+# Pageviews
+summary(mod1 <- lm(log(1 + other_ca) ~ log(1 + corona_ca), data = news_data_formatted))
+summary(mod1 <- lm(log(1 + corona_ca) ~ log(1 + other_ca), data = news_data_formatted))
 
-summary(lm(log(1 +corona_ca) ~ gov + month + day, data=news_data_formatted))
+# Readtime
+summary(mod1 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month + day, data = news_data_formatted))
+summary(mod1 <- lm(log(1 + corona_ra) ~ log(1 + other_ra), data = news_data_formatted))
+
+summary(lm(log(1 + corona_ca) ~ gov + month + day, data = news_data_formatted))
 
 
 dwtest(mod1) # There is autocorrelation
@@ -347,7 +368,7 @@ bptest(mod1) # There is heteroskedasticity
 
 
 # robust standard errors
-se_2 <- coeftest(mod1, vcov=vcovHC(mod1,type="HC0",cluster="group"))
+(se_2 <- coeftest(mod1, vcov=vcovHC(mod1, type="HC0")))
 
 
 # tables showing:
@@ -364,6 +385,29 @@ news_data_formatted %>% group_by(month) %>% summarise(sum_other = sum(other_ca),
 summary(news_data_formatted)
 
 
+
+
+
+
+# Weekly data
+news_data_formatted <- merge(temp[temp$type == "corona",], temp[temp$type == "other",], by = "week") 
+
+news_data_formatted$month <- format(news_data_formatted$date.x,"%B")
+
+news_data_formatted <- news_data_formatted %>% 
+  select(-c(pageviews.x, articles_sum.x, pageviews.y, sum_page.x, sum_page.y, articles_sum.y, date.x, date.y, year.x, year.y, type.x, type.y))
+
+colnames(news_data_formatted)[2:3] <- c("corona_ca", "other_ca")
+
+# Weekly
+summary(mod1 <- lm(log(1 + other_ca) ~ log(1 + corona_ca) + month + as.factor(week), data=news_data_formatted))
+
+summary(lm(log(1 + corona_ca) ~ month, data=news_data_formatted))
+
+
+
+# robust standard errors
+(se_2 <- coeftest(mod1, vcov=vcovHC(mod1, type="HC0")))
 
 
 # why is this here?
