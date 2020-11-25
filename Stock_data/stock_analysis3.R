@@ -58,6 +58,15 @@ rm(Ticker_list, i, j, x, z)
 stock_data <- stock_data %>% group_by(Security, year(date), month(date)) %>%
   mutate(mean_volume = mean(PX_VOLUME))
 
+# Mean volatility in january
+# Mean volatility in january
+stock_data <- left_join(stock_data, (stock_data %>% filter(month(date) == 1) %>% ungroup %>% 
+                                       mutate(daily_return = log(PX_LAST/PX_OPEN)) %>% group_by(Security) %>% 
+                                       mutate(Vol_jan = mean(daily_return^2))))
+
+stock_data <- stock_data %>% group_by(Security) %>%
+  mutate(Vol_jan = last(na.omit(Vol_jan)))
+
 # Cumulative abnormal volume and return ----------------------------------------------
 stock_data <- stock_data %>% 
   group_by(industry, date) %>%
@@ -80,66 +89,33 @@ stock_data <- stock_data %>%
          CAR1 = c(as.numeric(rollapply(1 + daily_return, 2, prod, partial = FALSE, align = "right")), rep(NA, times = 1)) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
                -c(as.numeric(rollapply(1 + MR, 2, prod, partial = FALSE, align = "right")), rep(NA, times = 1)),
          
-         CAR2 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 2, prod, partial = FALSE, align = "right")), rep(NA, times = 1)) # Cumulative abnormal return (CAR) for each company in each industry first 3 days
-               -c(as.numeric(rollapply(1 + lead(MR, 2), 2, prod, partial = FALSE, align = "right")), rep(NA, times = 1)),
+         CAR2 = c(as.numeric(rollapply(1 + daily_return, 3, prod, partial = FALSE, align = "right")), rep(NA, times = 2)) # Cumulative abnormal return (CAR) for each company in each industry first 3 days
+               -c(as.numeric(rollapply(1 + MR, 3, prod, partial = FALSE, align = "right")), rep(NA, times = 2)),
          
-         CAR3 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 3, prod, partial = FALSE, align = "right")), rep(NA, times = 2)) # Cumulative abnormal return (CAR) for each company in each industry first 4 days
-               -c(as.numeric(rollapply(1 + lead(MR, 2), 3, prod, partial = FALSE, align = "right")), rep(NA, times = 2)),
-         
-         CAR30 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 30, prod, partial = FALSE, align = "right")), rep(NA, times = 29)) # Cumulative abnormal return (CAR) for each company in each industry first 30 days
-                -c(as.numeric(rollapply(1 + lead(MR, 2), 30, prod, partial = FALSE, align = "right")), rep(NA, times = 29)),
+         CAR3 = c(as.numeric(rollapply(1 + daily_return, 4, prod, partial = FALSE, align = "right")), rep(NA, times = 3)) # Cumulative abnormal return (CAR) for each company in each industry first 4 days
+               -c(as.numeric(rollapply(1 + MR, 4, prod, partial = FALSE, align = "right")), rep(NA, times = 3)),
          
          CAR40 = c(as.numeric(rollapply(1 + lead(daily_return, 2), 40, prod, partial = FALSE, align = "right")), rep(NA, times = 39)) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
                 -c(as.numeric(rollapply(1 + lead(MR, 2), 40, prod, partial = FALSE, align = "right")), rep(NA, times = 39)),
          
-         abn_volatility1 = ((daily_return^2 + lead(daily_return)^2)/2)    # Volatility for each company
-                           - ((MR^2 + lead(MR)^2)/2),                     # Market volatility
-         
-         abn_volatility2 = ((daily_return^2 + lead(daily_return)^2 + lead(daily_return, 2)^2)/3) # Volatility for each company
-                           - ((MR^2 + lead(MR)^2 + lead(daily_return, 2)^2)/3),                  # Market volatility
-         
-         abn_volatility30 = c(rep(NA,times = 29), as.numeric(rollapply(daily_return, 30, sd ,partial = FALSE, align = "left")))   
-                           -c(rep(NA,times = 29), as.numeric(rollapply(MR, 30, sd, partial = FALSE, align = "left")))) %>%       
-                                                                              
+         abn_volatility1 = daily_return^2-MR^2,
+
+         Avol = daily_return^2 - (rollsumr(lag(daily_return, n = 11), k = 30, fill = NA)/30),
+         Avol2 = daily_return^2 - Vol_jan) %>%            # Market volatility
   
   group_by(industry,date) %>%
-  mutate(AV_industy = ((sum(AV_DV, na.rm = T, fill = NA)-AV_DV)/(n()-ifelse(n() == sum(is.na(AV_DV)),1,0)-sum(is.na(AV_DV))))) %>% # Mean abnormal volume for industry
+  mutate(AV_industy = ((sum(AV_DV, na.rm = T, fill = NA)-AV_DV)/(n()-ifelse(n() == sum(is.na(AV_DV)),1,0)-sum(is.na(AV_DV)))), # Mean abnormal volume for industry
+         Avol_industry = ((sum(Avol, na.rm = T, fill = NA)-Avol)/(n()-ifelse(n() == sum(is.na(Avol)),1,0)-sum(is.na(Avol)))),
+         Avol_industry2 = ((sum(Avol2, na.rm = T, fill = NA)-Avol2)/(n()-ifelse(n() == sum(is.na(Avol2)),1,0)-sum(is.na(Avol2))))) %>% 
   group_by(Security) %>% 
-  mutate(AV_alt = AV_DV - AV_industy) #%>% # Abnormal volume minus mean industy abnormal volume
-  #select(-c(AV_DV,daily_return, MR, val , total_val, total_mkt_cap, PX_OPEN, AV_industy, "year(date)", "month(date)")) # Remove variables used for calculations
+  mutate(AV_alt = AV_DV - AV_industy,                     # Abnormal volume minus mean industy abnormal volume
+         abn_volatility2 = Avol-Avol_industry,
+         abn_volatility3 = Avol-Avol_industry2) %>%  
+  select(-c(AV_DV,daily_return, MR, val , total_val, total_mkt_cap, PX_OPEN, AV_industy, "year(date)", "month(date)")) # Remove variables used for calculations
 
-
-test <- stock_data %>% 
-  select(Security, date, daily_return, MR)
-
-stock_data$abn_volatility1 <- (stock_data$daily_return^2 + lead(stock_data$daily_return^2))/2 - (stock_data$MR^2 + lead(stock_data$MR^2))/2
-
-test$Security <- gsub(" .*$", "", test$Security, ignore.case = T)
-
-# Test if vol spikes on earnings announcments
-date <- as.Date("2020-05-07")
-interval <- interval((date-180), (date+180))
-comp <- "EQNR"
-dates <- as.Date(c("2020-02-06", "2020-05-07", "2020-07-24"))
-
-test %>% 
-  select(date, Security, abn_volatility1) %>% 
-  filter(Security == comp) %>% 
-  filter(date %within% interval) %>% 
-  
-  ggplot(., aes(x = as.Date(date), y = abn_volatility1)) +
-  geom_line() +
-  geom_vline(xintercept = dates,
-             linetype = 4, colour = "black") +
-  labs(title = "Volume of Stock Around Earnings Report",
-       # subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Volatility") +
-  scale_x_date(date_labels = "%d %b %Y", date_breaks  = "10 day") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 library(moments)
-skewness(news_data_formatted$clicks_article, na.rm = T) # abn_volatility1 is super skewed, as it should be
+skewness(stock_data$abn_volatility_A2, na.rm = T) # abn_volatility1 is super skewed, as it should be
 
 
 # Creating control variables -------------------------------------------
@@ -304,7 +280,7 @@ rm(EPS)
 
 #_VOLATILITY / ABNORMAL VOLUME - PLOT _______________________________________________________________________________________
 
-plot_data <- stock_data %>% select(c(Security, date, abn_volatility1, abn_volatility3, AV_alt, news_jan,news_quarter,news_month,news_week,news_q3,news_q4,news_q5,news_q3_quarter,news_q3_month)) %>% 
+plot_data <- stock_data %>% select(c(Security, date, abn_volatility1, abn_volatility2, abn_volatility3, AV_alt, news_jan,news_quarter,news_month,news_week,news_q3,news_q4,news_q5,news_q3_quarter,news_q3_month)) %>% 
   drop_na()
 
 plot_data$Security <- gsub(" .*$", "", plot_data$Security, ignore.case = T)
@@ -335,7 +311,7 @@ plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% s
        x = "Days from Announcement", y = "Mean AV") +
   theme_bw()
 
-plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% summarize(m_AVol = mean(abn_volatility1)) %>% 
+plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% summarize(m_AVol = mean(abn_volatility2)) %>% 
   ggplot(.,aes(x = time, y = m_AVol)) +
   geom_line(aes(colour = news_q)) +
   labs(title = "Mean Abnormal Volatility Around Earnings Announcement",
