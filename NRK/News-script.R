@@ -31,7 +31,7 @@ news_corona <- news_data[grep("Covid-19|korona", news_data$subject, ignore.case 
   mutate(type = "corona")
 
 # Remove economic subjects
-#news_data <- news_data[!grepl("økonomi|næringsliv", news_data$subject, ignore.case = T), ]
+#news_data <- news_data[!grepl("?konomi|n?ringsliv", news_data$subject, ignore.case = T), ]
 
 sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
 
@@ -262,10 +262,10 @@ table_sub <- as.data.frame(table(subjects_all))
 test_finance <- news_data[grep("politikk", news_data$subject, ignore.case = T), ] # Change subject to investegate what articles are in it
 test_finance[sample(nrow(test_finance), 20), 1:2]
 
-# Mest relevat er økonomi, Equinor, olje og gass, teknologi og data, 
-# Litt mer usikker på temaene politikk, Donald Trump, USA osv.
+# Mest relevat er ?konomi, Equinor, olje og gass, teknologi og data, 
+# Litt mer usikker p? temaene politikk, Donald Trump, USA osv.
 # Subsetting with all chosen finance subjects
-news_finance <- news_data[grep("økonomi|trump|teknologi|energi|reiseliv|olje|equinor|fiskeri|næringsliv", news_data$subject, ignore.case = T), ] %>% 
+news_finance <- news_data[grep("?konomi|trump|teknologi|energi|reiseliv|olje|equinor|fiskeri|n?ringsliv", news_data$subject, ignore.case = T), ] %>% 
   mutate(type = "finance")
 
 #news_finance <- news_finance[grep("", news_data$full_text, ignore.case = T), ] # When we add full text we can add words that have to be included
@@ -287,32 +287,35 @@ news_variables(news_finance, news_finance$read_time_total) # Total read time on 
 
 # Ecnonometric analysis
 # Create dataset
-news_data <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
+#news_data <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
 news_corona <- read.csv("Stock_data/news_corona.csv")[,-1] %>% 
   mutate(type = "corona",
-         day = wday(date, label = T), 
-         month = month(date, label = T),
+         day = format(as.Date(date),"%A"), 
+         month = format(as.Date(date),"%B"),
          year = year(date)) %>% 
-  filter(!day == "Sat" & !day == "Sun" & !month == "Jan")
+  filter(!day == unique(day)[1] & !day == unique(day)[2] & !month == unique(month)[9])
 
 news_other <- read.csv("Stock_data/news_not_corona.csv")[,-1] %>% 
   mutate(type = "other",
-         day = wday(date, label = T), 
-         month = month(date, label = T),
+         day = format(as.Date(date),"%A"), 
+         month = format(as.Date(date),"%B"),
          year = year(date)) %>% 
-  filter(!day == "Sat" & !day == "Sun" & !month == "Jan" & year == "2020")
+  filter(!day == unique(day)[2] & !day == unique(day)[3] & !month == unique(month)[1] & year == "2020") %>% 
+  drop_na()
 
 
-# Formatting newsdata for regression 
+# Formatting newsdata for regression
+# Other news
 news_data_formatted1 <- news_other %>% 
   select(date, pageviews, read_time_total) %>% 
   group_by(date) %>% 
   summarise(clicks_sum = sum(pageviews), 
-            read_sum = sum(read_time_total),
+            read_sum = sum(read_time_total, na.rm = T),
             articles_sum = n()) %>%
   mutate(clicks_article = clicks_sum/articles_sum,
          read_article = read_sum/articles_sum)
 
+#Corona
 news_data_formatted2 <- news_corona %>% 
   select(date, pageviews, read_time_total) %>% 
   group_by(date) %>% 
@@ -323,16 +326,11 @@ news_data_formatted2 <- news_corona %>%
          read_article = read_sum/articles_sum)
 
 
-# Merge corona and not corona data
+# Merge other and corona data
 news_data_formatted <- merge(news_data_formatted1, news_data_formatted2, by=1, all.x = T)
-rm(news_data_formatted1, news_data_formatted2)
+rm(news_data_formatted1, news_data_formatted2, news_corona, news_other)
 
 news_data_formatted$date <- as.Date(news_data_formatted$date) # Make sure it is formated as a date
-
-# Make variable for gov announcments
-government_tv <- read_csv("Stock_data/government_tv.csv")[,-1] # Load data 
-
-news_data_formatted$gov <- ifelse(news_data_formatted$date %in% government_tv$date, 1, 0)
 
 # Drop some columns
 news_data_formatted <- news_data_formatted %>% 
@@ -348,27 +346,57 @@ colnames(news_data_formatted)[2:5] <- c("other_ca", "other_ra", "corona_ca", "co
 # Control variables
 news_data_formatted$month <- format(news_data_formatted$date, "%B")
 news_data_formatted$day <- format(news_data_formatted$date, "%A")
+news_data_formatted$week <- week(news_data_formatted$date)
 
 
 # Linear model and summary statistics
 
-# Pageviews
-summary(mod1 <- lm(log(1 + other_ca) ~ log(1 + corona_ca), data = news_data_formatted))
-summary(mod1 <- lm(log(1 + corona_ca) ~ log(1 + other_ca), data = news_data_formatted))
+# Pageviews log normalized
+summary(mod1 <- lm(log(1+ other_ca) ~ log(1+corona_ca), data = news_data_formatted))
 
-# Readtime
-summary(mod1 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month + day, data = news_data_formatted))
-summary(mod1 <- lm(log(1 + corona_ra) ~ log(1 + other_ra), data = news_data_formatted))
+# Pageviews lagged term
+mod1 <- lm(other_ca ~ corona_ca + lag(corona_ca), data = news_data_formatted)
 
-summary(lm(log(1 + corona_ca) ~ gov + month + day, data = news_data_formatted))
+# Pageviews squared and cubed terms
+mod1 <- lm(other_ca ~ corona_ca + corona_ca^2 + corona_ca^3, data = news_data_formatted)
+
+# Control for month
+mod1 <- lm(other_ca ~ corona_ca + month, data = news_data_formatted)
+
+# Weekly average
+news_data_formatted %>% group_by(week) %>%  summarize(m_other_ca = mean(other_ca),
+                                                      m_corona_ca = mean(corona_ca)) %>% 
+  lm(m_other_ca ~ m_corona_ca + m_corona_ca^2 + m_corona_ca^3, data = .) -> mod1
+
+# Adjusted standard errors
+coeftest(mod1, df = Inf, vcov = vcovCL(mod1, cluster = ~ week, type = "HC1")) # Cluster standard errors per week
+
+coeftest(mod1, df = Inf, vcov = vcovHAC(mod1)) # vcovHAC adjusts for hetroskedasticity and autocorrelation
+
+
+# Take closer look at autocorrelation 
+# - (add lagged terms)
+# - HAC robust standard errors
+# - Make data average per week instead
+# Find the appropriate "type"
+
+
+# Readtime per article
+mod1 <- lm(other_ra ~ corona_ra, data = news_data_formatted)
+
+# Logaritmic readtime per article
+mod1 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) , data = news_data_formatted)
+
 
 
 dwtest(mod1) # There is autocorrelation
 bptest(mod1) # There is heteroskedasticity
 
 
-# robust standard errors
-(se_2 <- coeftest(mod1, vcov=vcovHC(mod1, type="HC0")))
+# Adjusted standard errors
+coeftest(mod1, df = Inf, vcov = vcovCL(mod1, cluster = ~ month, type = "HC1")) # Cluster standard errors per week
+
+coeftest(mod1, df = Inf, vcov = vcovHAC(mod1)) # vcovHAC adjusts for hetroskedasticity and autocorrelation
 
 
 # tables showing:
@@ -408,28 +436,5 @@ summary(lm(log(1 + corona_ca) ~ month, data=news_data_formatted))
 
 # robust standard errors
 (se_2 <- coeftest(mod1, vcov=vcovHC(mod1, type="HC0")))
-
-
-# why is this here?
-# Leftover code removed from stock_analysis3 ------------------------------
-
-# Variable for amount of corona news - Not done
-# news_corona <- read_csv("Stock_data/news_corona.csv")
-# 
-# news_data_formatted <- news_corona[,-1] %>% 
-#   select(date, pageviews) %>% 
-#   mutate(nr_articles = n_distinct(date)) %>% 
-#   group_by(date) %>% 
-#   summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
-#   mutate(clicks_article = clicks.sum/articles.sum)
-# 
-# news_data_formatted$news <- cut(news_data_formatted$clicks_article,
-#                                 quantile(news_data_formatted$clicks_article, c(0, .25, .50, .75, 1)),
-#                                 labels = c("very low", "low", "high", "very high"),
-#                                 include.lowest = TRUE)
-# 
-# # Create the variable in the main dataframe
-# stock_data$news_corona <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
-
 
 
