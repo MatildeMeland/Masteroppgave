@@ -352,7 +352,7 @@ news_data_formatted$week <- week(news_data_formatted$date)
 # Linear model and summary statistics
 
 # Pageviews log normalized
-summary(mod1 <- lm(log(1+ other_ca) ~ log(1+corona_ca), data = news_data_formatted))
+mod1 <- lm(log(1+ other_ca) ~ log(1+corona_ca), data = news_data_formatted)
 
 # Pageviews lagged term
 mod1 <- lm(other_ca ~ corona_ca + lag(corona_ca), data = news_data_formatted)
@@ -361,7 +361,7 @@ mod1 <- lm(other_ca ~ corona_ca + lag(corona_ca), data = news_data_formatted)
 mod1 <- lm(other_ca ~ corona_ca + corona_ca^2 + corona_ca^3, data = news_data_formatted)
 
 # Control for month
-mod1 <- lm(other_ca ~ corona_ca + month, data = news_data_formatted)
+mod1 <- lm(other_ca ~ corona_ca, data = news_data_formatted)
 
 # Weekly average
 news_data_formatted %>% group_by(week) %>%  summarize(m_other_ca = mean(other_ca),
@@ -382,10 +382,40 @@ coeftest(mod1, df = Inf, vcov = vcovHAC(mod1)) # vcovHAC adjusts for hetroskedas
 
 
 # Readtime per article
-mod1 <- lm(other_ra ~ corona_ra, data = news_data_formatted)
+mod1 <- lm(other_ra ~ corona_ra + month, data = news_data_formatted)
 
 # Logaritmic readtime per article
-mod1 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) , data = news_data_formatted)
+mod1 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month , data = news_data_formatted)
+
+library(stargazer)
+stargazer(news_data_formatted, type= "html")
+stargazer(mod1, type = "html")
+
+# Creating a nice table for output statistics:
+mod1 <- lm(other_ca ~ corona_ca, data = news_data_formatted)
+mod2 <- lm(other_ca ~ corona_ca + month, data = news_data_formatted)
+mod3 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) , data = news_data_formatted)
+mod4 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month , data = news_data_formatted)
+
+rob_se <- list(sqrt(diag(vcovHAC(mod1))),
+               sqrt(diag(vcovHAC(mod2))),
+               sqrt(diag(vcovHAC(mod3))),
+               sqrt(diag(vcovHAC(mod4))))
+
+stargazer(mod1, mod2, mod3, mod4, 
+          digits = 3,
+          header = FALSE,
+          type = "html", 
+          se = rob_se,
+          dep.var.labels=c("Clicks Other","Readtime Other"),
+          omit.stat=c("adj.rsq","f","ser"),
+          omit = "month",
+          add.lines = list(c("Month control", "", "X","","X")),
+          table.layout = "=ldc-tas-n",
+          covariate.labels=c("Clicks corona", "ln(Readtime)", "Intercept"),
+          title = "Linear Regression Models of corona-information affect on other",
+          model.numbers = FALSE,
+          column.labels = c("(1)", "(2)", "(3)", "(4)"))
 
 
 
