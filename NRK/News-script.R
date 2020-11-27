@@ -358,15 +358,23 @@ mod1 <- lm(log(1+ other_ca) ~ log(1+corona_ca), data = news_data_formatted)
 mod1 <- lm(other_ca ~ corona_ca + lag(corona_ca), data = news_data_formatted)
 
 # Pageviews squared and cubed terms
-mod1 <- lm(other_ca ~ corona_ca + corona_ca^2 + corona_ca^3, data = news_data_formatted)
+mod1 <- lm(other_ca ~ corona_ca + poly(corona_ca,2), data = news_data_formatted)
 
 # Control for month
 mod1 <- lm(other_ca ~ corona_ca, data = news_data_formatted)
 
 # Weekly average
-news_data_formatted %>% group_by(week) %>%  summarize(m_other_ca = mean(other_ca),
-                                                      m_corona_ca = mean(corona_ca)) %>% 
-  lm(m_other_ca ~ m_corona_ca + m_corona_ca^2 + m_corona_ca^3, data = .) -> mod1
+# Pageviews
+news_data_formatted %>% group_by(week) %>% summarize(m_other_ca = mean(other_ca),
+                                                     m_corona_ca = mean(corona_ca),
+                                                     month = month) %>%
+  lm(m_other_ca ~ m_corona_ca + poly(m_corona_ca, 2) + poly(m_corona_ca, 3) + poly(m_corona_ca, 4) + poly(m_corona_ca, 5) + month, data = .) -> mod1
+
+# Readtime
+news_data_formatted %>% group_by(week) %>% summarize(m_other_ra = mean(other_ra),
+                                                     m_corona_ra = mean(corona_ra),
+                                                     month = month) %>%
+  lm(m_other_ra ~ m_corona_ra + poly(m_corona_ra, 2) + poly(m_corona_ra, 3) + poly(m_corona_ra, 4) + poly(m_corona_ra, 5), data = .) -> mod1
 
 # Adjusted standard errors
 coeftest(mod1, df = Inf, vcov = vcovCL(mod1, cluster = ~ week, type = "HC1")) # Cluster standard errors per week
