@@ -341,6 +341,15 @@ data_dup$ticker <- gsub("-", "", data_dup$ticker)
 # data_dup <- unique(data_dup)
 
 data_dup$ticker[data_dup$ticker == "PPG PREF"] <- "PPGPREF"
+data_dup$ticker[data_dup$ticker == "ZWIPEME"] <- "ZWIPE"
+
+test <- data_dup$ticker[!data_dup$ticker %in% Ticker_list$ticker] %>% unique() %>% as.data.frame()
+test2 <- Ticker_list$ticker[!data_dup$ticker %in% Ticker_list$ticker] %>% unique() %>% as.data.frame()
+
+write.xlsx(test2, file = "Peer_companies/test2.xlsx", sheetName = "Sheet1")
+
+data_dup$ticker %>% unique() %>% length()
+Ticker_list$ticker %>% unique() %>% length()
 
 # List of tickers visible on Oslo børs webpage
 library(readxl)

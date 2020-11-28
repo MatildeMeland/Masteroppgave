@@ -380,7 +380,7 @@ news_data_formatted %>% group_by(week) %>% summarize(m_other_ra = mean(other_ra)
 coeftest(mod1, df = Inf, vcov = vcovCL(mod1, cluster = ~ week, type = "HC1")) # Cluster standard errors per week
 
 coeftest(mod1, df = Inf, vcov = vcovHAC(mod1)) # vcovHAC adjusts for hetroskedasticity and autocorrelation
-
+summary(mod1)
 
 # Take closer look at autocorrelation 
 # - (add lagged terms)
@@ -395,11 +395,54 @@ mod1 <- lm(other_ra ~ corona_ra + month, data = news_data_formatted)
 # Logaritmic readtime per article
 mod1 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month , data = news_data_formatted)
 
+
+
 library(stargazer)
 stargazer(news_data_formatted, type= "html")
 stargazer(mod1, type = "html")
 
-# Creating a nice table for output statistics:
+# Table 1a
+stargazer(summary(as.factor(earning_data$month)),
+          type = "html",
+          title = "Linear Regression Models of corona-information affect on other")
+
+# Table 1b
+table <- stock_data %>%
+  select(news_q, ES, ES_quantile, CUR_MKT_CAP, MARKET_CAPITALIZATION_TO_BV, mean_analyst, mean_IO_share, share_turnover) %>%
+  filter(news_q == "N1" | news_q == "N5") %>%
+  group_by(news_q) %>%
+  summarize(ES = mean(ES),
+            mkt_cap = mean(CUR_MKT_CAP, na.rm = T)/1000,
+            M_B = mean(MARKET_CAPITALIZATION_TO_BV, na.rm = T),
+            analyst = mean(mean_analyst),
+            IO_share = mean(mean_IO_share),
+            share_turnover = mean(share_turnover, na.rm = T)) %>%
+  t() %>% as.data.frame() %>% rename(N1 = V1, N5 = V2) %>%
+  subset(N1 != "N1") %>% rownames_to_column() %>%
+  mutate_at(c("N1","N5"), as.numeric) %>%
+  mutate(diff = N5-N1)
+  
+
+
+stargazer(mod1, mod2, mod3, mod4, 
+          digits = 3,
+          header = FALSE,
+          type = "html", 
+          dep.var.labels=c("Clicks Other","Readtime Other"),
+          omit.stat=c("adj.rsq","f","ser"),
+          omit = "month",
+          add.lines = list(c("Month control", "", "X","","X")),
+          table.layout = "n-=ldc-tas",
+          covariate.labels=c("Clicks Corona", "", "Clicks Corona squared", "Readtime Corona", "", "Readtime Corona squared", "Intercept"),
+          title = "Linear Regression Models of corona-information affect on other",
+          notes = "...",
+          notes.append = FALSE,
+          notes.label = "",
+          notes.align = "l",
+          model.numbers = FALSE,
+          column.labels = c("(1)", "(2)", "(3)", "(4)"))
+
+# Table 2
 mod1 <- lm(other_ca ~ corona_ca, data = news_data_formatted)
 mod2 <- lm(other_ca ~ corona_ca + month, data = news_data_formatted)
 mod3 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) , data = news_data_formatted)
@@ -419,9 +462,60 @@ stargazer(mod1, mod2, mod3, mod4,
           omit.stat=c("adj.rsq","f","ser"),
           omit = "month",
           add.lines = list(c("Month control", "", "X","","X")),
-          table.layout = "=ldc-tas-n",
+          table.layout = "n=ldc-tas-",
           covariate.labels=c("Clicks corona", "ln(Readtime)", "Intercept"),
           title = "Linear Regression Models of corona-information affect on other",
+          model.numbers = FALSE,
+          column.labels = c("(1)", "(2)", "(3)", "(4)"),
+          notes.label = "", 
+          notes.align = "l",
+          notes.append = F,
+          notes = "Using readership data from NRK from the beginning of COVID-19 in February until the end of September,  we regress the amount of clicks and minutes spent reading covid-articles on clicks and reading time of other articles.  Saturday and Sunday are excluded from the sample in order to capture the effect during trading hours. Regression (2) and (4) adjust for monthly fixed effects by using indicator variables for each month in the time period. Standard errors are adjusted for heteroskedasticity and autocorrelation and reported in the paratecies. *, **, and *** represent significance at the 10%, 5% and 1% level respectively.")
+
+# Table 3
+# Creating a nice table for output statistics:
+mod1 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ca = mean(other_ca),
+                                                             m_corona_ca = mean(corona_ca),
+                                                             month = month) %>%
+  lm(m_other_ca ~ m_corona_ca + poly(m_corona_ca, 2), data = .)
+
+mod2 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ca = mean(other_ca),
+                                                             m_corona_ca = mean(corona_ca),
+                                                             month = month) %>%
+  lm(m_other_ca ~ m_corona_ca + poly(m_corona_ca, 2) + month, data = .)
+
+mod3 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ra = mean(other_ra),
+                                                             m_corona_ra = mean(corona_ra),
+                                                             month = month) %>%
+  lm(m_other_ra ~ m_corona_ra + poly(m_corona_ra, 2), data = .)
+
+mod4 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ra = mean(other_ra),
+                                                             m_corona_ra = mean(corona_ra),
+                                                             month = month) %>%
+  lm(m_other_ra ~ m_corona_ra + poly(m_corona_ra, 2) + month, data = .)
+
+
+rob_se <- list(sqrt(diag(vcovHAC(mod1))),
+               sqrt(diag(vcovHAC(mod2))),
+               sqrt(diag(vcovHAC(mod3))),
+               sqrt(diag(vcovHAC(mod4))))
+
+stargazer(mod1, mod2, mod3, mod4, 
+          digits = 3,
+          header = FALSE,
+          type = "html", 
+          se = rob_se,
+          dep.var.labels=c("Clicks Other","Readtime Other"),
+          omit.stat=c("adj.rsq","f","ser"),
+          omit = "month",
+          add.lines = list(c("Month control", "", "X","","X")),
+          table.layout = "n-=ldc-tas",
+          covariate.labels=c("Clicks Corona", "", "Clicks Corona squared", "Readtime Corona", "", "Readtime Corona squared", "Intercept"),
+          title = "Linear Regression Models of corona-information affect on other",
+          notes = "We run regressions on both the clicks per article and readtime in a given day for articles not about corona on clicks or readtime for articles about corona. To control for time-varying effects indicator variables for each month are included. Since we are most interested in how attention is affected in trading days, Saturday and Sunday is excluded. ClicksO and ClicksC is the number of daily pageviews for other and Corona articles respectively.",
+          notes.append = FALSE,
+          notes.label = "",
+          notes.align = "l",
           model.numbers = FALSE,
           column.labels = c("(1)", "(2)", "(3)", "(4)"))
 
@@ -476,3 +570,51 @@ summary(lm(log(1 + corona_ca) ~ month, data=news_data_formatted))
 (se_2 <- coeftest(mod1, vcov=vcovHC(mod1, type="HC0")))
 
 
+
+
+
+
+
+
+
+
+
+
+# Plots in the paper
+
+# Figure 1
+# Weekly data
+news_corona$week <- week(as.Date(news_corona$date, format = "%Y-%m-%d"))
+news_corona$year <- year(as.Date(news_corona$date, format = "%Y-%m-%d"))
+
+news_other$week <- week(as.Date(news_other$date, format = "%Y-%m-%d"))
+news_other$year <- year(as.Date(news_other$date, format = "%Y-%m-%d"))
+
+temp1 <- news_corona %>% 
+  select(date, year, week, pageviews) %>% 
+  group_by(year, week) %>% 
+  mutate(sum_page = sum(pageviews)/10^6, articles_sum = n()) %>% 
+  mutate(pr_article = sum_page/articles_sum) %>% 
+  mutate(Category = "Corona")
+
+temp2 <- news_other %>% 
+  select(date, year, week, pageviews) %>% 
+  group_by(year, week) %>% 
+  mutate(sum_page = sum(pageviews)/10^6, articles_sum = n()) %>% 
+  mutate(pr_article = sum_page/articles_sum) %>% 
+  mutate(Category = "Other")
+
+temp <- rbind(temp1, temp2) %>% group_by(week) %>% filter(!duplicated(pr_article))
+temp <- temp[!temp$week == 40,] # There is a wierd dip in articles this week -- consider removing
+
+rm(temp1, temp2)
+
+temp %>% 
+  ggplot(., aes(x = as.Date(date), y = sum_page, color = Category)) +
+  geom_line() +
+  labs(title = "Total Weekly Pageviews of Corona Articles (pink) and All Other Articles (blue) by NRK (Million)",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Million pageviews") +
+  scale_x_date(date_labels = "%d %b %Y", date_breaks = "1 month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))

@@ -3,6 +3,7 @@ library(readxl)
 library(tidyverse)
 library(zoo)
 library(lubridate)
+library(DescTools)
 
 # Load and format stock data ----------------------------------------------------
 stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
@@ -473,7 +474,13 @@ stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
 # Foster model 2
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1, stock_data$news_month)
-earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40, stock_data$news_q3_month)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR2, stock_data$news_month)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR3, stock_data$news_month)
+
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40, stock_data$news_month)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR50, stock_data$news_month)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR60, stock_data$news_month)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR70, stock_data$news_month)
 
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_alt)
 
@@ -492,10 +499,6 @@ library(sandwich)
 
 # Control variables
 control <- paste(c("mean_analyst", "mean_IO_share", "mean_MtoB", "CUR_MKT_CAP", "share_turnover30"), collapse=' + ')
-control2 <- paste(c("ES_quantile * mean_analyst", "ES_quantile * mean_IO_share", "ES_quantile * BtoM_decile", "ES_quantile * MktC_decile", "ES_quantile * share_turnover30"), collapse=' + ')
-control3 <- paste(c("ES_top * mean_analyst", "ES_top * mean_IO_share", "ES_top * BtoM_decile", "ES_top * MktC_decile", "ES_top * share_turnover30"), collapse=' + ')
-
-
 
 # CAR[0,1] ----------------------------------------------------------------
 
@@ -573,14 +576,24 @@ coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
 
 # Reg 5.2 - Continous with middle removed
-lm.fit <- stock_data %>% filter(ES_quantile == "Q1" | ES_quantile == "Q5") %>% mutate(News_top = ifelse(news_q == "N5", 1, 0)) %>% 
+lm.fit <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% mutate(News_top = ifelse(news_q == "N5", 1, 0)) %>% 
   lm(paste("CAR40 ~ ES * I(News_top) +", control), data = .)
 summary(lm.fit)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
-# Reg 5.3 - 
+# Reg 6.1 - News continous and only top and bottom of ES
+lm.fit <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>%  
+  lm(CAR60 ~ news + ES_quantile, data = .) 
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+# Reg 6.2 - News continous and only top and bottom of ES + interaction
+lm.fit <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>%  
+  lm(CAR60 ~ news + ES_quantile + news * ES_quantile, data = .) 
+coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
+
+# Reg 6.3 - News continous and only top and bottom of ES + interaction + control
 stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>%  
-  lm(CAR40 ~ news + ES_quantile, data = .) -> lm.fit
+  lm(CAR60 ~ news + ES_quantile + news * ES_quantile + month + (MktC_decile + BtoM_decile +  mean_IO_share + mean_analyst + share_turnover30), data = .) -> lm.fit
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 
 # Abnormal volume ----------------------------------------------------------------
