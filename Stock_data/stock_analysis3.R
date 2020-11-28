@@ -4,6 +4,9 @@ library(tidyverse)
 library(zoo)
 library(lubridate)
 library(DescTools)
+library(sandwich)
+library(lmtest)
+library(robustHD)
 
 # Load and format stock data ----------------------------------------------------
 stock_data <- read_excel("Stock_data/stock_final.xlsx") %>% as.data.frame()
@@ -86,7 +89,7 @@ stock_data <- stock_data %>%
          MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1),                             # Market return, diff takes the difference between last observation and current
          #daily_return = log(PX_LAST/PX_OPEN),                                              # Daily return, might change to log returns instead
          
-         daily_return = Winsorize((log(PX_LAST/PX_OPEN)), minval = NULL, maxval = NULL, probs = c(0.05, 0.95),
+         daily_return = winsorize((log(PX_LAST/PX_OPEN)), minval = NULL, maxval = NULL, probs = c(0.05, 0.95),
                    na.rm = T, type = 7),
          
          CAR1 = c(as.numeric(rollapply(1 + daily_return, 2, prod, partial = FALSE, align = "right")), rep(NA, times = 1)) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
@@ -693,3 +696,7 @@ stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(TOP_N = 
   lm(abn_volatility1 ~ I(TOP_N) + ES_abs + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30 , data = .) -> lm.fit
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC0"))
 summary(lm.fit)
+
+
+
+
