@@ -298,18 +298,24 @@ plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% s
         panel.grid.minor.y = element_blank())
 
 # Volatility
-plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% summarize(m_AVol = mean(AVol_alt1)) %>% 
-  ggplot(.,aes(x = time, y = m_AVol)) +
+plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% summarize(m_AVol = mean(AVol_alt3)) %>% 
+  ggplot(.,aes(x = time, y = m_AVol, linetype = news_q, fill = news_q,  shape = news_q)) +
   geom_line(aes(colour = news_q)) +
-  scale_color_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E"))+
+  scale_color_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
+  scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
+  #geom_point() + 
+  #scale_shape_manual(name = "News Q", values = c(15, 17)) +
+  #geom_bar(stat = "identity", position = "dodge") +
+  #scale_fill_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
   labs(title = "Figure 4: Mean Abnormal Volatility Around Earnings Announcement",
        x = "Days from Announcement", y = "Mean abnormal volatility") +
-  scale_x_continuous(n.breaks = 11)+
-  theme_bw()+
+  scale_x_continuous(n.breaks = 11) +
+  theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
+
 
 # CAR over time
 plot_data$CAR_start <- NA
@@ -324,8 +330,8 @@ for (i in 1:nrow(plot_data)) {
 
 
 plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% 
-  filter(!month == "3") %>% # Without March
-  filter(ES_q == "1") %>% # Only a spesific ES
+  #filter(!month == "3") %>% # Without March
+  #filter(ES_q == "1") %>% # Only a spesific ES
   summarize(m_CAR = mean(CAR_start)) %>% 
   ggplot(.,aes(color = news_q, x = time, y = m_CAR, linetype = news_q, shape = news_q)) +
   geom_line() +
@@ -592,6 +598,11 @@ mod4 <- stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(
        month + (MktC_decile + BtoM_decile + mean_IO_share + mean_analyst), data = .)
 coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))
 
+estimatr::lm_robust(AV_alt20lag ~ news + ES_quantile2, data = stock_data, se_type = "stata", clusters = date)
+estimatr::lm_robust(AV_alt20lag ~ news + ES_quantile2, data = stock_data, se_type = "stata", clusters = day)
+estimatr::lm_robust(AV_alt20lag ~ news + ES_quantile2, data = stock_data, se_type = "stata", clusters = )
+
+estimatr::lm_robust(AVol_reg1 ~ news + ES_quantile2, data = stock_data, se_type = "stata", clusters = date)[1]
 
 # Volatility --------------------------------------------------------------
 
@@ -922,69 +933,51 @@ stargazer(mod1, mod2, mod3, mod4,
 
 
 # Plots
-# Figure 5: CAR[0,1]_________________________________________________________________________________
+# Figure 5a: CAR[0,1]_________________________________________________________________________________
 stock_data$news_q <- stock_data$news_month
 stock_data %>% 
   group_by(ES_quantile) %>% 
-  mutate(ES_names = round(mean(ES), 4)) %>% ungroup() %>% 
-  select(news_q, ES_quantile, CAR1, ES_names, ES) %>%
+  mutate(ES_names = round(mean(ES), 3)) %>% ungroup() %>% 
+  select(news_q, ES_quantile, CAR2, ES_names, ES) %>%
   filter(news_q == "N1" | news_q == "N5") %>%
   group_by(news_q, ES_quantile) %>%
-  summarise(mean = mean(CAR1, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
+  summarise(mean = mean(CAR2, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
   na.omit(ES) %>% 
   
-  ggplot(., aes(x = ES_names, y = mean, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
-  geom_line() + 
-  geom_point() +
-  scale_color_manual(name = "News Q", values = c("#4EBCD5", "#1C237E")) +
-  scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
-  scale_shape_manual(name = "News Q", values = c(15, 17)) +
-  labs(title = "Figure 5: Average CAR[0,1] for Each Earnings Surprise Quantile",
-       x = "Earnings Surprise Quantile", y = "CAR[0,1]") +
-  theme_bw() +
-  theme(text = element_text(family = "serif"),
-        panel.grid.minor.y = element_blank())
-
-
-# Figure 5: CAR[0,2]
-stock_data$news_q <- stock_data$news_month
-stock_data %>% select(news_q, ES_quantile, CAR2) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q, ES_quantile) %>%
-  summarise(mean = mean(CAR2, na.rm = T)) %>% ungroup() %>%
-  na.omit(ES) %>% 
-  
-  ggplot(., aes(x = ES_quantile, y = mean, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
+  ggplot(., aes(x = as.factor(ES_names), y = mean, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
   geom_line() + 
   geom_point() +
   scale_color_manual(name = "News Q", values = c("#4EBCD5", "#1C237E")) +
   scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
   scale_shape_manual(name = "News Q", values = c(15, 17)) +
   labs(title = "Figure 5: Average CAR[0,2] for Each Earnings Surprise Quantile",
-       #subtitle = paste0("EPS Estimate Model = ", gsub("^.+\\$", "", deparse(substitute(EPSestimated)))),
        x = "Earnings Surprise Quantile", y = "CAR[0,2]") +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.minor.y = element_blank())
 
-# Figure 5: CAR[2,40]
+
+
+
+# Figure 5b: CAR[2,40]
 stock_data$news_q <- stock_data$news_month
-stock_data %>% select(news_q, ES_quantile, CAR40) %>%
+stock_data %>% 
+  group_by(ES_quantile) %>% 
+  mutate(ES_names = round(mean(ES), 3)) %>% ungroup() %>% 
+  select(news_q, ES_quantile, CAR40, ES_names, ES) %>%
   filter(news_q == "N1" | news_q == "N5") %>%
   group_by(news_q, ES_quantile) %>%
-  summarise(mean = mean(CAR40, na.rm = T)) %>% ungroup() %>%
+  summarise(mean = mean(CAR40, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
   na.omit(ES) %>% 
   
-  ggplot(., aes(x = ES_quantile, y = mean, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
+  ggplot(., aes(x = as.factor(ES_names), y = mean, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
   geom_line() + 
   geom_point() +
   scale_color_manual(name = "News Q", values = c("#4EBCD5", "#1C237E")) +
   scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
   scale_shape_manual(name = "News Q", values = c(15, 17)) +
-  labs(title = "Figure 5: Average CAR[2,40] for Each Earnings Surprise Quantile",
+  labs(title = "Figure 6: Average CAR[2,40] for Each Earnings Surprise Quantile",
        x = "Earnings Surprise Quantile", y = "CAR[2,40]") +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.minor.y = element_blank())
-
-

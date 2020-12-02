@@ -478,6 +478,7 @@ temp2 <- news_other %>%
 
 temp <- rbind(temp1, temp2) %>% group_by(week) %>% filter(!duplicated(pr_article))
 temp <- temp[!temp$week == 40,] # There is a wierd dip in articles this week -- consider removing
+temp <- temp[!temp$week == 53,] # There is a wierd dip in articles this week -- consider removing
 rm(temp1, temp2)
 
 temp %>% 
@@ -487,8 +488,8 @@ temp %>%
        subtitle = "October 2019 - September 2020",
        x = "Date", y = "Million pageviews") +
   scale_x_date(date_labels = "%d %b %Y", date_breaks = "1 month") +
-  scale_color_manual("Category", values = c("#4EBCD5", "#1C237E")) +
-  scale_linetype_manual(values = c("solid", "longdash")) +
+  scale_color_manual("Category", values = c("#1C237E", "orange")) +
+  scale_linetype_manual(values = c("longdash", "solid")) +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         axis.text.x = element_text(angle = 40, hjust = 1),
