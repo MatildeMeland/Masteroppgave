@@ -7,6 +7,7 @@ library(DescTools)
 library(sandwich)
 library(lmtest)
 library(robustHD)
+library(stargazer)
 
 # Load and format stock data ----------------------------------------------------
 stock_data <- read_excel("Stock_data/stock_final2.xlsx") %>% as.data.frame()
@@ -627,7 +628,7 @@ coeftest(lm.fit, df = Inf, vcov = vcovCL(lm.fit, cluster = ~ date, type = "HC1")
 
 # Plots and tables for paper ----------------------------------------------
 
-library(stargazer)
+
 
 # Table 1a:
 #   Distribution of earnings during the year
@@ -788,10 +789,10 @@ stargazer(mod1, mod2, mod3, mod4,
 
 
 # Table 4: Abnormal Volatility________________________________________________________________________________
-
-mod1 <- lm(AVol_reg1 ~ news + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30, data=stock_data)
-mod2 <- lm(AVol_reg2 ~ news + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30, data=stock_data)
-mod3 <- lm(AVol_reg3 ~ news + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30, data=stock_data)
+stock_data$news2 <- stock_data$news/1000
+mod1 <- lm(AVol_reg1 ~ news2 + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30, data=stock_data)
+mod2 <- lm(AVol_reg2 ~ news2 + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30, data=stock_data)
+mod3 <- lm(AVol_reg3 ~ news2 + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30, data=stock_data)
 
 rob_se <- list(sqrt(diag(vcovHC(mod1, type = "HC1"))),
                sqrt(diag(vcovHC(mod2, type = "HC1"))),
@@ -801,11 +802,17 @@ t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
                coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
                coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))))
 
+p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
+               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
+               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4])
+
 stargazer(mod1, mod2, mod3,
           digits = 3,
           header = FALSE,
           type = "html",
-          se = rob_se,
+          #se = rob_se,
+          se = t_vals,
+          p = p_vals,
           dep.var.labels = c("Squared returns", "Parkinsons","German-Klass"),
           omit.stat = c("adj.rsq","f","ser"),
           omit = c("month", "MktC_decile", "BtoM_decile", "mean_IO_share", "mean_analyst", "share_turnover30"),
@@ -818,13 +825,16 @@ stargazer(mod1, mod2, mod3,
           notes.label = "",
           notes.align = "l",
           model.numbers = FALSE,
-          report = "vct*",
+          report = "vc*s",
           column.labels = c("(1)", "(2)", "(3)"))
+
 
 
 # Table 5: CAR _________________________________________________________________________________________
 stock_data$news2 <- stock_data$news/1000
 stock_data$CAR2_2 <- stock_data$CAR2*100
+stock_data$ES_quantile <- as.numeric(stock_data$ES_quantile)
+
 
 mod1 <- lm(CAR2_2 ~ news2*ES_quantile, data = stock_data)
 mod2 <- lm(CAR2_2 ~ news2*ES_quantile + month + ES_quantile*(MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30), data = stock_data)
@@ -832,15 +842,15 @@ mod3 <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% lm(CAR2_2
 mod4 <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% lm(CAR2_2 ~ news2*I(ES_quantile) + month + I(ES_quantile)*(BtoM_decile + mean_IO_share + mean_analyst + share_turnover30), data = .)
 
 
+t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
+               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
+               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
+               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))))
 
-rob_se <- list(sqrt(diag(vcovHC(mod1, type = "HC1"))),
-               sqrt(diag(vcovHC(mod2, type = "HC1"))),
-               sqrt(diag(vcovHC(mod3, type = "HC1"))),
-               sqrt(diag(vcovHC(mod4, type = "HC1"))))
-
-#t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
-#               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
-#               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))))
+p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
+               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
+               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
+               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4])
 
 
 # Multiply all dependent variable with 100 to get basis points.
@@ -849,20 +859,21 @@ stargazer(mod1, mod2, mod3, mod4,
           digits = 3,
           header = FALSE,
           type = "html",
-          se = rob_se,
-          #dep.var.labels = c("CAR[0,2]"),
+          se = t_vals,
+          p = p_vals,
+          dep.var.labels = c("CAR[0,2]"),
           omit.stat = c("adj.rsq","f","ser"),
           omit = c("month", "MktC_decile", "BtoM_decile", "mean_IO_share", "mean_analyst", "share_turnover30"),
           add.lines = list(c("Controls","", "X", "", "X")),
           table.layout = "n-=ldc-tas-",
-          #covariate.labels = c("Corona News", "ES","ES * Corona News","TOP ES", "TOP ES * Corona News" , "Intercept"),
+          covariate.labels = c("Corona News", "ES","ES * Corona News","TOP ES", "TOP ES * Corona News" , "Intercept"),
           title = "Table 5: <br> Linear Regression Models of how Corona-News effect short-term abnormal returns",
           notes = "Table 5 shows the results of the multivariate regression on how the amount of clicks on Corona articles published by NRK affects abnormal returns of stocks around earnings announcements. Abnormal returns are the returns for each company adjusted for the market return for the industry they are within. Earnings surprises are divided into 5 quantiles where the first quintile is the most negative surprise and the fifth quintile the most positive. Control variables include indicators for each month, market capitalization deciles, market-to-book ratio deciles, share of institutional ownership,  Number of Analysts, and share turnover the last 30 days. All control variables are averaged for each month and interacted with the earning surprise quantiles.. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
           notes.append = FALSE,
           notes.label = "",
           notes.align = "l",
           model.numbers = FALSE,
-          report = "vct*",
+          report = "vc*s",
           column.labels = c("(1)", "(2)", "(3)", "(4)"))
 
 # Table 6: CAR40______________________________________________________________________________________
@@ -876,10 +887,15 @@ mod2 <- lm(CAR40_2 ~ news2*ES_quantile + month + ES_quantile*(MktC_decile + BtoM
 mod3 <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% lm(CAR40_2 ~ news2*I(ES_quantile), data = .)
 mod4 <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% lm(CAR40_2 ~ news2*I(ES_quantile) + month + I(ES_quantile)*(BtoM_decile + mean_IO_share + mean_analyst + share_turnover30), data = .)
 
-rob_se <- list(sqrt(diag(vcovHC(mod1, type = "HC1"))),
-               sqrt(diag(vcovHC(mod2, type = "HC1"))),
-               sqrt(diag(vcovHC(mod3, type = "HC1"))),
-               sqrt(diag(vcovHC(mod4, type = "HC1"))))
+t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
+               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
+               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
+               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))))
+
+p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
+               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
+               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
+               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4])
 
 # By using CAR40 * 100 we get basis points
 
@@ -887,7 +903,8 @@ stargazer(mod1, mod2, mod3, mod4,
           digits = 3,
           header = FALSE,
           type = "html",
-          se = rob_se,
+          se = t_vals,
+          p = p_vals,
           dep.var.labels = c("CAR[3,40]"),
           omit.stat = c("adj.rsq","f","ser"),
           omit = c("month", "MktC_decile", "BtoM_decile", "mean_IO_share", "mean_analyst", "share_turnover30"),
@@ -900,7 +917,7 @@ stargazer(mod1, mod2, mod3, mod4,
           notes.label = "",
           notes.align = "l",
           model.numbers = FALSE,
-          report = "vct*",
+          report = "vc*s",
           column.labels = c("(1)", "(2)", "(3)", "(4)"))
 
 
