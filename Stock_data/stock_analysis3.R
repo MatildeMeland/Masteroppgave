@@ -44,6 +44,9 @@ for (i in unique(stock_data$Security)) {
   }
 }
 
+# Fix instances with missing high and low. Make them equal to px_last since these are days with
+stock_data <- stock_data %>% mutate(PX_LOW = ifelse(is.na(PX_LOW), PX_LAST, PX_LOW),
+                                    PX_HIGH = ifelse(is.na(PX_HIGH), PX_LAST, PX_HIGH))
 
 # Create a column with industry specifications
 Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx") # list of companies with industry specification
@@ -62,6 +65,7 @@ stock_data <- stock_data %>%
   group_by(Security, year, month) %>%
   mutate(mean_volume = mean(PX_VOLUME))
 
+# Mean volatility in january
 stock_data <- left_join(stock_data, (stock_data %>% filter(month == 1) %>% ungroup %>% 
                                        mutate(daily_return = log(PX_LAST/PX_OPEN)) %>% group_by(Security) %>% 
                                        mutate(Vol_jan = mean(daily_return^2))))
@@ -69,7 +73,7 @@ stock_data <- left_join(stock_data, (stock_data %>% filter(month == 1) %>% ungro
 stock_data <- stock_data %>% group_by(Security) %>% # not working?
   mutate(Vol_jan = last(na.omit(Vol_jan)))
 
-# Load accounting data
+# Get shares outstanding
 acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
   select(-c(date1, time, PX_TO_BOOK_RATIO, date2, comparable, period))
 
@@ -152,7 +156,7 @@ stock_data <- stock_data %>%
          AVol_reg1 = (AVol_alt1 + lead(AVol_alt1))/2,           # Avolatility for regression
          AVol_reg2 = (AVol_alt2 + lead(AVol_alt2))/2,
          AVol_reg3 = (AVol_alt3 + lead(AVol_alt3))/2) %>% 
-  select(-c(vol1A,vol2A,vol3A,AVol_industy1,AVol_industy2,AVol_industy3, capH,capL,capO,capC))
+  select(-c(T_MC, val, total_val, AV_industy30,AV_industy20 ,vol1A,vol2A,vol3A,AVol_industy1,AVol_industy2,AVol_industy3, capH,capL,capO,capC))
 
 #library(moments)
 #skewness(stock_data$abn_volatility1, na.rm = T) # abn_volatility1 is super skewed, as it should be
@@ -489,9 +493,10 @@ stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
 
 # CAR[0,1] ----------------------------------------------------------------
+stock_data$news2 <- stock_data$news/1000
+stock_data$CAR40_2 <- stock_data$CAR40*100
 
 # See if results differ using numeric variables
-stock_data$news_q <- as.numeric(stock_data$news_month)
 stock_data$ES_quantile <- as.numeric(stock_data$ES_quantile)
 
 # Reg1 : CAR2 = news + ES_quantiles
@@ -541,7 +546,6 @@ coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC1"))
 
 # Abnormal volume ----------------------------------------------------------------
 
-#stock_data$TOP_N = ifelse(stock_data$news_q == 5, 1, 0)   remove?
 stock_data$ES_abs = abs(stock_data$ES)
 stock_data$ES_quantile2 <- cut(stock_data$ES_abs,
                                breaks = quantile(stock_data$ES_abs, seq(0, 1, l = 6), na.rm = T, type = 8),
@@ -549,12 +553,11 @@ stock_data$ES_quantile2 <- cut(stock_data$ES_abs,
                                include.lowest = TRUE)
 stock_data$ES_quantile2 <- as.numeric(stock_data$ES_quantile2)
 stock_data$news_q <- stock_data$news_month
-stock_data$news_q <- as.numeric(stock_data$news_month)
 
 stock_data  %>%
   filter(news_q == "N1" | news_q == "N5") %>%
   group_by(news_q,ES_quantile2) %>%
-  summarise(mean = mean(AV_alt, na.rm = T)) %>% ungroup() %>%
+  summarise(mean = mean(AV_alt20lag, na.rm = T)) %>% ungroup() %>%
   na.omit(ES) %>% 
   ggplot(., aes(x = ES_quantile2, y = mean, group = news_q)) +
   geom_line(aes(colour = news_q)) + 
@@ -590,7 +593,6 @@ coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))
 
 
 # Volatility --------------------------------------------------------------
-stock_data$news_q <- as.numeric(stock_data$news_month)
 
 stock_data  %>%
   filter(news_q == "N1" | news_q == "N5") %>%
