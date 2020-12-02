@@ -152,21 +152,7 @@ stock_data <- stock_data %>%
          AVol_reg1 = (AVol_alt1 + lead(AVol_alt1))/2,           # Avolatility for regression
          AVol_reg2 = (AVol_alt2 + lead(AVol_alt2))/2,
          AVol_reg3 = (AVol_alt3 + lead(AVol_alt3))/2) %>% 
-  select(-c(vol1A,vol2A,vol3A,capH,capL,capO,capC))
-
-# Calculate CAR
-CAR_calc <- function(days) {
-  days <- as.numeric(days)
-  
-  stock_data <<- stock_data %>% 
-    group_by(Security) %>% 
-    mutate(temp = c(as.numeric(rollapply(1 + daily_return, days, prod, partial = FALSE, align = "right")), rep(NA, times = days - 1)) # Cumulative abnormal return (CAR) for each company in each industry first 3 days
-           -c(as.numeric(rollapply(1 + MR, days, prod, partial = FALSE, align = "right")), rep(NA, times = days - 1)))
-  
-  colnames(stock_data[,"temp"]) <<- paste0("CAR", as.character(days))
-}
-
-CAR_calc(30)
+  select(-c(vol1A,vol2A,vol3A,AVol_industy1,AVol_industy2,AVol_industy3, capH,capL,capO,capC))
 
 #library(moments)
 #skewness(stock_data$abn_volatility1, na.rm = T) # abn_volatility1 is super skewed, as it should be
@@ -527,7 +513,7 @@ coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC1"))
 
 
 coeftest(lm.fit, df = Inf, vcov = vcovCL(lm.fit, cluster = ~ date, type = "HC1")) # denne funker, nesten lik
-coeftest(vcovCL(lm.fit, cluster = ~ date, type = "HC1"))
+
 
 # CAR[2,40] ---------------------------------------------------------------
 stock_data$news2 <- stock_data$news/1000
@@ -619,17 +605,17 @@ stock_data  %>%
   theme_bw()
 
 # Reg 1: Avol1
-lm.fit1=lm(AVol_reg1 ~ news + ES_quantile2, data=stock_data)
+lm.fit=lm(AVol_reg1 ~ news + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst, data=stock_data)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC1"))
 summary(lm.fit)
 
 # Reg 2: Avol2
-lm.fit=lm(AVol_reg1 ~ news + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30, data=stock_data)
+lm.fit=lm(AVol_reg2 ~ news + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst, data=stock_data)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC1"))
 summary(lm.fit)
 
 # Reg 3: Avol3
-lm.fit=lm(AV_reg2 ~ news + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst + share_turnover30, data=stock_data)
+lm.fit=lm(AVol_reg3 ~ news + ES_quantile2 + month + MktC_decile + BtoM_decile + mean_IO_share + mean_analyst, data=stock_data)
 coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC1"))
 summary(lm.fit)
 
