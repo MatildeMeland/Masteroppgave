@@ -649,10 +649,47 @@ stargazer(summary(as.factor(month(earning_data$date,label = T, abbr = T))), #Cre
           title = "Distribution of earnings announcment through the sample period")
 # add: width="600" ,after: style="text-align:center"
 
+# As a plot
+plot1A <-summary(as.factor(month(earning_data$date,label = T, abbr = T))) %>% as.data.frame() %>% 
+  rename(earnings = ".")
+plot1A$month <- factor(row.names(plot1A),levels = c("jan","feb","mar","apr","mai","jun","jul","aug","sep","okt","nov", "des"))
+
+plot1A %>%  
+  ggplot(.,aes(x = month, y = earnings)) +
+  geom_bar(stat = "identity",fill = "#2549b9") +
+  #scale_fill_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
+  labs(title = "Figure 1A: Earnings announcement in each month",
+       x = "Month", y = "Number of announcements") +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        #legend.position="top",
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
 # Days of week
 stargazer(summary(as.factor(wday(stock_data$date,label = T, abbr = F))), #Create variable for month
           type = "html",
-          title = "Distribution of earnings announcment through the sample period")
+          title = "Distribution of Earnings Announcment through the sample period")
+
+# As a plot
+plot1B <-summary(as.factor(wday(stock_data$date,label = T, abbr = F))) %>% as.data.frame() %>% 
+  rename(earnings = ".")
+plot1B$month <- factor(row.names(plot1B), levels = c("mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"))
+
+plot1B %>%  
+  ggplot(.,aes(x = month, y = earnings)) +
+  geom_bar(stat = "identity",fill = "#2549b9") +
+  #scale_fill_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
+  labs(title = "Figure 1B: Earnings Announcements per day",
+       x = "Day of week", y = "Number of announcements") +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        #legend.position="top",
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
 
 # Table 1b.1:
 #   Mean, median, . see Ungehauer
@@ -736,22 +773,23 @@ stargazer(df2, type= "html", summary = F,
 # Table 3: Abnormal Volume______________________________________________________________________________
 # Creating a nice table for output statistics:
 # No interaction
+stock_data$news2 <- stock_data$news/1000
 mod1 <- stock_data %>%
-  lm(AV_alt20lag ~ news + ES_quantile2, data = .)
+  lm(AV_alt20lag ~ news2 + ES_quantile2, data = .)
 coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))
 coeftest(mod1, df = Inf, vcov = vcovHC(mod1, cluster = ~ date, type = "HC1"))
 
 mod2 <- stock_data %>%
-  lm(AV_alt20lag ~ news + ES_quantile2 + 
+  lm(AV_alt20lag ~ news2 + ES_quantile2 + 
        month + (MktC_decile + BtoM_decile + mean_IO_share + mean_analyst), data = .)
 coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))
 
 mod3 <- stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(ES_quantile = ifelse(ES_quantile2 == 1, 0, 1)) %>% 
-  lm(AV_alt20lag ~ news + I(ES_quantile2), data = .)
+  lm(AV_alt20lag ~ news2 + I(ES_quantile2), data = .)
 coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))
 
 mod4 <- stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(ES_quantile = ifelse(ES_quantile2 == 1, 0, 1)) %>% 
-  lm(AV_alt20lag ~ news + I(ES_quantile2) + 
+  lm(AV_alt20lag ~ news2 + I(ES_quantile2) + 
        month + (MktC_decile + BtoM_decile + mean_IO_share + mean_analyst), data = .)
 coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))
 
@@ -944,14 +982,14 @@ stock_data %>%
   summarise(mean = mean(CAR2, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
   na.omit(ES) %>% 
   
-  ggplot(., aes(x = as.factor(ES_names), y = mean, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
+  ggplot(., aes(x = as.factor(ES_names), y = mean*100, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
   geom_line() + 
   geom_point() +
   scale_color_manual(name = "News Q", values = c("#4EBCD5", "#1C237E")) +
   scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
   scale_shape_manual(name = "News Q", values = c(15, 17)) +
   labs(title = "Figure 5: Average CAR[0,2] for Each Earnings Surprise Quantile",
-       x = "Earnings Surprise Quantile", y = "CAR[0,2]") +
+       x = "Average Earnings Surprise in each Quantile", y = "CAR[0,2] in %") +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.minor.y = element_blank())
@@ -970,14 +1008,14 @@ stock_data %>%
   summarise(mean = mean(CAR40, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
   na.omit(ES) %>% 
   
-  ggplot(., aes(x = as.factor(ES_names), y = mean, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
+  ggplot(., aes(x = as.factor(ES_names), y = mean*100, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
   geom_line() + 
   geom_point() +
   scale_color_manual(name = "News Q", values = c("#4EBCD5", "#1C237E")) +
   scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
   scale_shape_manual(name = "News Q", values = c(15, 17)) +
   labs(title = "Figure 6: Average CAR[2,40] for Each Earnings Surprise Quantile",
-       x = "Earnings Surprise Quantile", y = "CAR[2,40]") +
+       x = "Average Earnings Surprise in each Quantile", y = "CAR[2,40] in %") +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.minor.y = element_blank())
