@@ -497,6 +497,58 @@ temp %>%
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
 
+# Scatterplot of Corona News and other
+news_data_formatted %>% 
+  ggplot(., aes(y = other_ca, x = corona_ca)) +
+  geom_point() +
+  labs(title = "Figure 2: Relationship between Pageviews for Other articles and Corona atricles",
+       x = "News Corona", y = "News Other") +
+  geom_smooth() +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+news_data_formatted %>% 
+  ggplot(., aes(y = other_ra, x = corona_ra)) +
+  geom_point() +
+  labs(title = "Figure 2: Relationship between Readtime for Other articles and Corona atricles",
+       x = "News Corona", y = "News Other") +
+  geom_smooth() +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+news_data_formatted %>% group_by(week) %>% 
+  summarize(m_other_ca = mean(other_ca),
+            m_corona_ca = mean(corona_ca),
+            month = month) %>% 
+  ggplot(., aes(y = m_other_ca, x = m_corona_ca)) +
+  geom_point() +
+  labs(title = "Figure 2: Relationship between Weekly Average Pageviews for Other articles and Corona atricles",
+       x = "News Corona", y = "News Other") +
+  geom_smooth() +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+news_data_formatted %>% group_by(week) %>% 
+  summarize(m_other_ra = mean(other_ra),
+            m_corona_ra = mean(corona_ra),
+            month = month) %>% 
+  ggplot(., aes(y = m_other_ra, x = m_corona_ra)) +
+  geom_point() +
+  labs(title = "Figure 2: Relationship between Weekly Average Readtime for Other articles and Corona atricles",
+       x = "News Corona", y = "News Other") +
+  geom_smooth() +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+
 
 
 
@@ -514,18 +566,29 @@ rob_se <- list(sqrt(diag(vcovHAC(mod1))),
                sqrt(diag(vcovHAC(mod3))),
                sqrt(diag(vcovHAC(mod4))))
 
+t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
+               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
+               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
+               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))))
+
+p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
+               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
+               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
+               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4])
+
 stargazer(mod1, mod2, mod3, mod4, 
           digits = 3,
           header = FALSE,
           type = "html", 
-          se = rob_se,
+          se = t_vals,
+          p = p_vals,
           dep.var.labels=c("Clicks Other","Readtime Other"),
           omit.stat=c("adj.rsq","f","ser"),
           omit = "month",
           add.lines = list(c("Month control", "", "X","","X")),
           table.layout = "n=ldc-tas-",
           covariate.labels=c("Clicks corona", "ln(Readtime)", "Intercept"),
-          title = "Linear Regression Models of corona-information affect on other",
+          title = "Table 2: <br> Linear Regression Models of corona-information affect on other",
           model.numbers = FALSE,
           column.labels = c("(1)", "(2)", "(3)", "(4)"),
           notes.label = "", 
@@ -538,22 +601,22 @@ stargazer(mod1, mod2, mod3, mod4,
 mod1 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ca = mean(other_ca),
                                                              m_corona_ca = mean(corona_ca),
                                                              month = month) %>%
-  lm(m_other_ca ~ m_corona_ca + poly(m_corona_ca, 2), data = .)
+  lm(m_other_ca ~ poly(m_corona_ca, 2, raw = T), data = .)
 
 mod2 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ca = mean(other_ca),
                                                              m_corona_ca = mean(corona_ca),
                                                              month = month) %>%
-  lm(m_other_ca ~ m_corona_ca + poly(m_corona_ca, 2) + month, data = .)
+  lm(m_other_ca ~ poly(m_corona_ca, 2, raw = T) + month,  data = .)
 
 mod3 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ra = mean(other_ra),
                                                              m_corona_ra = mean(corona_ra),
                                                              month = month) %>%
-  lm(m_other_ra ~ m_corona_ra + poly(m_corona_ra, 2), data = .)
+  lm(m_other_ra ~ poly(m_corona_ra, 2, raw = T), data = .)
 
 mod4 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ra = mean(other_ra),
                                                              m_corona_ra = mean(corona_ra),
                                                              month = month) %>%
-  lm(m_other_ra ~ m_corona_ra + poly(m_corona_ra, 2) + month, data = .)
+  lm(m_other_ra ~ poly(m_corona_ra, 2, raw = T) + month, data = .)
 
 
 rob_se <- list(sqrt(diag(vcovHAC(mod1))),
@@ -561,19 +624,30 @@ rob_se <- list(sqrt(diag(vcovHAC(mod1))),
                sqrt(diag(vcovHAC(mod3))),
                sqrt(diag(vcovHAC(mod4))))
 
+t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
+               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
+               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
+               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))))
+
+p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
+               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
+               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
+               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4])
+
 stargazer(mod1, mod2, mod3, mod4, 
           digits = 3,
           header = FALSE,
           type = "html", 
-          se = rob_se,
+          se = t_vals,
+          p = p_vals,
           dep.var.labels=c("Clicks Other","Readtime Other"),
           omit.stat=c("adj.rsq","f","ser"),
           omit = "month",
           add.lines = list(c("Month control", "", "X","","X")),
-          table.layout = "n-=ldc-tas",
-          covariate.labels=c("Clicks Corona", "", "Clicks Corona squared", "Readtime Corona", "", "Readtime Corona squared", "Intercept"),
-          title = "Linear Regression Models of corona-information affect on other",
-          notes = "We run regressions on both the clicks per article and readtime in a given day for articles not about corona on clicks or readtime for articles about corona. To control for time-varying effects indicator variables for each month are included. Since we are most interested in how attention is affected in trading days, Saturday and Sunday is excluded. ClicksO and ClicksC is the number of daily pageviews for other and Corona articles respectively.",
+          table.layout = "n-=ldc-tas-",
+          covariate.labels=c("Clicks Corona", "Clicks Corona squared", "Readtime Corona", "Readtime Corona squared", "Intercept"),
+          title = "Table 2: <br> Weekly Average Corona Readership Statistics Affect on Other",
+          notes = "In Table 2 we run regressions on both the clicks per article and readtime averaged by week for articles not about corona on clicks or readtime for articles about corona. To control for time-varying effects indicator variables for each month are included. Since we are most interested in how attention is affected in trading days, Saturday and Sunday is excluded. ClicksO and ClicksC is the number of daily pageviews for other and Corona articles respectively.",
           notes.append = FALSE,
           notes.label = "",
           notes.align = "l",

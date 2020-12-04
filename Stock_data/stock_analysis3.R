@@ -650,7 +650,7 @@ stargazer(summary(as.factor(month(earning_data$date,label = T, abbr = T))), #Cre
 # add: width="600" ,after: style="text-align:center"
 
 # As a plot
-plot1A <-summary(as.factor(month(earning_data$date,label = T, abbr = T))) %>% as.data.frame() %>% 
+plot1A <- summary(as.factor(month(earning_data$date,label = T, abbr = T))) %>% as.data.frame() %>% 
   rename(earnings = ".")
 plot1A$month <- factor(row.names(plot1A),levels = c("jan","feb","mar","apr","mai","jun","jul","aug","sep","okt","nov", "des"))
 
