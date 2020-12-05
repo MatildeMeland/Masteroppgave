@@ -107,14 +107,20 @@ stock_data <- stock_data %>%
   mutate(AV_DV30 = (log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 30, fill = NA)/30)),   # Abnormal volume for each company
          AV_DV20 = (log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 20, fill = NA)/20)),   # Abnormal volume for each company
          
+         RN = Winsorize((log(PX_LAST/lag(PX_LAST))), minval = NULL, maxval = NULL, probs = c(0.05, 0.95), na.rm = T, type = 7),
+         
+         #vol = RN^2, # Winsorized 
+         vol = log(PX_LAST/lag(PX_LAST))^2, # Not winsorized 
          vol1 = log(PX_LAST/PX_OPEN)^2,
          vol2 = ((log(PX_HIGH)-log(PX_LOW))^2)/(4*log(2)),
          vol3 = 0.5*log(PX_HIGH/PX_LOW)^2 - (2*log(2)-1)*log(PX_LAST/PX_OPEN)^2,
          
+         volA = vol - (rollsumr((lag(vol, n = 11)), k = 20, fill = NA)/20),
          vol1A = vol1 - (rollsumr((lag(vol1, n = 11)), k = 20, fill = NA)/20),
          vol2A = vol2 - (rollsumr((lag(vol2, n = 11)), k = 20, fill = NA)/20),
          vol3A = vol3 - (rollsumr((lag(vol3, n = 11)), k = 20, fill = NA)/20),
          
+         volMR = vol - log(capC/lag(capC))^2,
          vol1MR = vol1 - log(capC/capO)^2,
          vol2MR = vol2 - ((log(capH)-log(capL))^2)/(4*log(2)),
          vol3MR = vol3 - 0.5*log(capH/capL)^2 - (2*log(2)-1)*log(capC/capO)^2,
@@ -141,6 +147,7 @@ stock_data <- stock_data %>%
   mutate(AV_industy30 = ((sum(AV_DV30, na.rm = T, fill = NA)-AV_DV30)/(n()-ifelse(n() == sum(is.na(AV_DV30)),1,0)-sum(is.na(AV_DV30)))), # Mean abnormal volume for industry
          AV_industy20 = ((sum(AV_DV20, na.rm = T, fill = NA)-AV_DV20)/(n()-ifelse(n() == sum(is.na(AV_DV20)),1,0)-sum(is.na(AV_DV20)))),  # Mean abnormal volume for industry 
          
+         AVol_industy = ((sum(volA, na.rm = T, fill = NA)-volA)/(n()-ifelse(n() == sum(is.na(volA)),1,0)-sum(is.na(volA)))),
          AVol_industy1 = ((sum(vol1A, na.rm = T, fill = NA)-vol1A)/(n()-ifelse(n() == sum(is.na(vol1A)),1,0)-sum(is.na(vol1A)))),
          AVol_industy2 = ((sum(vol2A, na.rm = T, fill = NA)-vol2A)/(n()-ifelse(n() == sum(is.na(vol2A)),1,0)-sum(is.na(vol2A)))),
          AVol_industy3 = ((sum(vol3A, na.rm = T, fill = NA)-vol3A)/(n()-ifelse(n() == sum(is.na(vol3A)),1,0)-sum(is.na(vol3A))))) %>%
@@ -151,6 +158,7 @@ stock_data <- stock_data %>%
          AV_alt20 = AV_DV20 - AV_industy20, 
          AV_alt20lag = (AV_alt20 + lead(AV_alt20))/2,
          
+         AVol_alt = volA - AVol_industy,
          AVol_alt1 = vol1A - AVol_industy1,
          AVol_alt2 = vol2A - AVol_industy2,
          AVol_alt3 = vol3A - AVol_industy3,
@@ -208,6 +216,18 @@ stock_data <- stock_data %>% ungroup() %>% group_by(month)%>% mutate(ranks=rank(
                           labels = c("N1","N2","N3","N4","N5"),
                           include.lowest = TRUE))
 
+stock_data <- stock_data %>% ungroup() %>% group_by(month)%>% mutate(ranks=rank(news, ties.method = "first")) %>% 
+  mutate(news_month4 = cut(ranks,
+                           breaks = quantile(ranks, seq(0, 1, l = 5), type = 7),
+                           labels = c("N1","N2","N3", "N4"),
+                           include.lowest = TRUE))
+
+stock_data <- stock_data %>% ungroup() %>% group_by(month)%>% mutate(ranks=rank(news, ties.method = "first")) %>% 
+  mutate(news_month3 = cut(ranks,
+                           breaks = quantile(ranks, seq(0, 1, l = 4), type = 7),
+                           labels = c("N1","N2","N3"),
+                           include.lowest = TRUE))
+
 #summary(stock_data$news_q) # Look at quantiles
 #nrow(stock_data[stock_data$news == 0,]) # Count number of rows with 0 news
 
@@ -252,7 +272,7 @@ rm(EPS)
 
 #_VOLATILITY / ABNORMAL VOLUME - PLOT _______________________________________________________________________________________
 
-plot_data <- stock_data %>% select(c(Security, date, AV_alt30, AV_alt30lag, AV_alt20, AV_alt20lag,AVol_alt1,AVol_alt2,AVol_alt3, news_month, daily_return, MR)) %>% 
+plot_data <- stock_data %>% select(c(Security, date, AV_alt30, AV_alt30lag, AV_alt20, AV_alt20lag, AVol_alt, AVol_alt1, AVol_alt2, AVol_alt3, news_month, news_month3, news_month4, daily_return, MR)) %>% 
   drop_na()
 
 plot_data$Security <- gsub(" .*$", "", plot_data$Security, ignore.case = T)
@@ -270,7 +290,7 @@ plot_data$ES_q[!is.na(plot_data$ES_4d)] <- cut(plot_data$ES_4d[!is.na(plot_data$
 
 for (i in 1:nrow(plot_data)) {
   if (is.na(plot_data$quarter[i]) == F) {
-    for (j in -2:10) {
+    for (j in -2:6) {
       plot_data$time[i + j] <- j
       plot_data$news_q[i + j] <- plot_data$news_q[i]
       plot_data$ES_q[i + j] <- plot_data$ES_q[i]
@@ -283,10 +303,11 @@ rm(i, j)
 plot_data <- plot_data %>% drop_na(time)
 
 # Plot of abnormal volume from -2 to +10 surrounding earnings announcement
-plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% summarize(m_AV = mean(AV_alt20)) %>% 
-  ggplot(.,aes(fill = news_q, x = time, y = m_AV)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  scale_fill_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
+plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N4")) %>% summarize(m_AV = mean(AV_alt20)) %>% 
+  ggplot(.,aes(fill = news_q, x = time, y = m_AV, linetype = news_q,)) +
+  geom_line(aes(colour = news_q)) +
+  scale_color_manual("News Q", values = c("N1" = "#4EBCD5", "N4" = "#1C237E")) +
+  scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
   labs(title = "Figure 3: Mean Abnormal Volume Around Earnings Announcement",
        x = "Days from Announcement", y = "Mean Abnormal Volume") +
   scale_x_continuous(n.breaks = 11) +
@@ -298,15 +319,11 @@ plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% s
         panel.grid.minor.y = element_blank())
 
 # Volatility
-plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% summarize(m_AVol = mean(AVol_alt3)) %>% 
+plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% summarize(m_AVol = mean(AVol_alt)) %>% 
   ggplot(.,aes(x = time, y = m_AVol, linetype = news_q, fill = news_q,  shape = news_q)) +
   geom_line(aes(colour = news_q)) +
   scale_color_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
   scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
-  #geom_point() + 
-  #scale_shape_manual(name = "News Q", values = c(15, 17)) +
-  #geom_bar(stat = "identity", position = "dodge") +
-  #scale_fill_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
   labs(title = "Figure 4: Mean Abnormal Volatility Around Earnings Announcement",
        x = "Days from Announcement", y = "Mean abnormal volatility") +
   scale_x_continuous(n.breaks = 11) +
@@ -348,8 +365,6 @@ plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>%
         panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
-
-
 
 
 #________________________________________________________________________________________________________
