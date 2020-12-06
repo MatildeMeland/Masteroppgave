@@ -12,14 +12,14 @@ set.seed(123) # For reproducible results
 # Fix problem with mismatching dates
 stock_data <- 
   merge(stock_data[,-2], stock_data[,1:2], by=1:2, all.y = T) %>% 
-  select(-EQY_SH_OUT)
+  select(-c(EQY_SH_OUT,VOLATILITY_30D))
 
 colnames(stock_data)[2] <- "date"
 
 stock_data$date <- as.Date(stock_data$date, format="%d.%m.%Y")
 
 # Change structure of variables from character to numeric
-stock_data[,3:7] <- sapply(stock_data[,3:7],as.numeric)
+stock_data[,3:6] <- sapply(stock_data[,3:6],as.numeric)
 
 # Change NA to 0 in volume
 stock_data$PX_VOLUME[is.na(stock_data$PX_VOLUME)] <- 0
@@ -42,6 +42,7 @@ for (i in unique(stock_data$Security)) {
   }
 }
 
+
 # Create a column with industry specifications
 Ticker_list <- read_excel("Peer_companies/Ticker-list.xlsx") # list of companies with industry specification
 
@@ -50,61 +51,46 @@ colnames(Ticker_list)[5] <- "Security"
 stock_data <- merge(stock_data, Ticker_list, by = "Security") %>%  # merge with stock data
   select(-c(ticker, name, industri))
 
-rm(Ticker_list)
-
-# Make a column for quaters
-Y2019_Q3 <- interval(ymd("2019-10-01"), ymd("2019-12-30"))
-Y2019_Q4 <- interval(ymd("2020-01-01"), ymd("2020-03-31"))
-Y2020_Q1 <- interval(ymd("2020-04-01"), ymd("2020-06-30"))
-Y2020_Q2 <- interval(ymd("2020-07-01"), ymd("2020-09-30"))
-
-stock_data$quarter[stock_data$date %within% Y2019_Q3] <- "Q3"
-stock_data$quarter[stock_data$date %within% Y2019_Q4] <- "Q4"
-stock_data$quarter[stock_data$date %within% Y2020_Q1] <- "Q1"
-stock_data$quarter[stock_data$date %within% Y2020_Q2] <- "Q2"
-
-rm(Y2019_Q3, Y2019_Q4, Y2020_Q1, Y2020_Q2)
-
-# Calculate abnormal volume -----------------------------------------------
-# Odeen method
-for (i in unique(stock_data$Security)) {
-  stock_data$AV_ODEEN[stock_data$Security == i] <- stock_data$PX_VOLUME[stock_data$Security == i]/(rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 30, fill = NA)/30)
-}
-
-# DellaVigna formula
-for (i in unique(stock_data$Security)) {
-  stock_data$AV_DV[stock_data$Security == i] <- log(((stock_data$PX_VOLUME[stock_data$Security == i] + lead(stock_data$PX_VOLUME[stock_data$Security == i]))/2)+1) - log(((rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 41, fill = NA)-rollsumr(stock_data$PX_VOLUME[stock_data$Security == i], k = 11, fill = NA))/30)+1)
-}
-
 # Remove unnecessary variables
-rm(i, j, x, z)
+rm(Ticker_list, i, j, x, z)
 
-# Cumulative abnormal return ----------------------------------------------
 
-# Create a value for total market cap for each industry and market return for each security.
-# Further use these values to calculate cumulative abnormal return
+# Cumulative abnormal volume and return ----------------------------------------------
 stock_data <- stock_data %>% 
   group_by(industry, date) %>%
-  mutate(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)-CUR_MKT_CAP) %>% 
+  mutate(total_mkt_cap = sum(CUR_MKT_CAP, na.rm = T)-CUR_MKT_CAP, # total market cap for each day in each industy minus current company
+         val = PX_VOLUME*PX_LAST,                                 # value traded each day for each company
+         total_val = sum(val, na.rm = T)-val) %>%                 # total value traded each day in each industry minus current company
   ungroup %>%
   arrange(., Security) %>% 
   group_by(Security) %>% 
-  
-  mutate(PX_5 = lag(PX_LAST, n=5)) %>% 
-  
-  mutate(MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1)) %>%        # market return for each industry
-  
-  mutate(daily_return = (PX_LAST-PX_OPEN)/PX_OPEN) %>%                    # daily return for each company
-  
-  mutate(CAR1 = c(rep(NA,times = 1), as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
-         -c(rep(NA,times = 1), as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "left")))) %>% 
-  
-  mutate(CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
-         -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left"))))
-
+  mutate(AV_DV = log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 30, fill = NA)/30),   # Abnormal volume for each company
+         PX_5 = lag(PX_LAST, n=5),                                                         # Price five days ago, needed later
+         MR = c(NA,diff(total_mkt_cap))/lag(total_mkt_cap, 1),                             # Market return, diff takes the difference between last observation and current
+         daily_return = (PX_LAST-PX_OPEN)/PX_OPEN,                                         # Daily return
+         
+         CAR1 = c(rep(NA,times = 1), as.numeric(rollapply(1 + daily_return, 2, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
+         -c(rep(NA,times = 1), as.numeric(rollapply(1 + MR, 2, prod,partial = FALSE, align = "left"))),
+         
+         CAR40 = c(rep(NA,times = 39), as.numeric(rollapply(1 + daily_return, 40, prod,partial = FALSE, align = "left"))) # Cumulative abnormal return (CAR) for each company in each industry first 40 days
+         -c(rep(NA,times = 39), as.numeric(rollapply(1 + MR, 40, prod,partial = FALSE, align = "left")))) %>% 
+  group_by(industry,date) %>%
+  mutate(AV_industy = ((sum(AV_DV, na.rm = T, fill = NA)-AV_DV)/(n()-ifelse(n() == sum(is.na(AV_DV)),1,0)-sum(is.na(AV_DV))))) %>% # Mean abnormal volume for industry
+  group_by(Security) %>% 
+  mutate(AV_alt = AV_DV - AV_industy) %>% # Abnormal volume minus mean industy abnormal volume
+  select(-c(AV_DV,daily_return, MR, val , total_val, total_mkt_cap, PX_OPEN, AV_industy)) # Remove variables used for calculations
 
 
 # Creating control variables -------------------------------------------
+
+# Price before corona
+# Some companies listed in 2020 will not have this value. Add an ifelse statement and use PX-5?
+for (i in unique(stock_data$Security)) {
+  stock_data$PX_normal[stock_data$Security == i] <- stock_data[stock_data$date == as.Date("2020-01-31") & stock_data$Security == i,]$PX_LAST
+}
+
+stock_data <- stock_data %>% group_by(Security) %>% mutate(PX_normal = ifelse(is.na(PX_normal),PX_5,PX_normal)) %>% 
+  select(-c(PX_5))
 
 # Varaible for month & day
 stock_data$month <- format(stock_data$date,"%B")
@@ -118,7 +104,9 @@ stock_data$gov <- ifelse(stock_data$date %in% government_tv$date, 1, 0)
 rm(government_tv) # remove government_tv dataset
 
 # Variable for amount of corona news
-news_data <- read_csv("Stock_data/news_corona.csv")[,-1] # Load data 
+news_data <- read_csv("Stock_data/news_corona.csv", locale = readr::locale(encoding = "latin1"))[,-1] # Load data 
+
+#news_data <- news_data[!grepl("økonomi|næringsliv", news_data$subject, ignore.case = T), ]
 
 news_data_formatted <- news_data %>% 
   select(date, pageviews) %>% 
@@ -133,12 +121,21 @@ stock_data$news <- news_data_formatted$clicks_article[match(stock_data$date, as.
 stock_data$news[is.na(stock_data$news)] <- 0
 
 stock_data <- stock_data[year(stock_data$date) == 2020,] # Remove days before 2020
+#stock_data <- stock_data[!month(stock_data$date) == 1,]
+#stock_data <- stock_data[!month(stock_data$date) == 2,]
+
+stock_data <- stock_data %>% ungroup() %>% group_by(month)%>% mutate(ranks=rank(news, ties.method = "first")) %>% 
+  mutate(news_Q2 = cut(ranks,
+                       breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
+                       labels = c("N1","N2","N3","N4","N5"),
+                       include.lowest = TRUE))
 
 ranks <- rank(stock_data$news, ties.method = "first")
 stock_data$news_q <- cut(ranks, 
-                         breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
-                         labels = c("N1","N2","N3","N4","N5"),
-                         include.lowest = TRUE)
+                   breaks = quantile(ranks, seq(0, 1, l = 6), type = 8),
+                   labels = c("N1","N2","N3","N4","N5"),
+                   include.lowest = TRUE)
+
 
 summary(stock_data$news_q) # Look at quantiles
 nrow(stock_data[stock_data$news == 0,]) # Count number of rows with 0 news
@@ -148,35 +145,123 @@ rm(news_data, news_data_formatted, ranks)
 
 # Dummy variable for earnings announcments and industy
 # Loading in data
-earning_data <- read_csv("Stock_data/earning_data.csv") %>% 
-  select(-c(X1,industri, industry))
-
-# Create matching tickers
-stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
+# Earnings data
+earning_data <- read_csv("Stock_data/earning_data2.csv", locale = readr::locale(encoding = "latin1")) %>% 
+  select(-c(X1,industri, industry, nr_attachments))
 
 # Change column names
-colnames(earning_data) <- c("Security", "Name", "date")
+colnames(earning_data) <- c("Security", "Name", "date", "title", "type")
 
-# Remove duplicated dates with about 10 days in between
-earning_data <- earning_data %>%
-  group_by(Security) %>% 
-  mutate(DUP = ifelse(abs(difftime(date, lag(date))) <= 10,1,0)) %>% 
-  subset(DUP %in%  0| DUP %in%  NA) %>% 
-  select(-DUP)
+earning_data$Q <- ifelse(grepl("kvartal|quarter|første|andre|tredje|fjerde|first|second|third|fourth|interim|tertial|halvårs|halvår|halvtårs|half|delårs", earning_data$title, ignore.case = T) | grepl("Q1|Q2|Q3|Q4|H1|1H|H2|2H", earning_data$title, ignore.case = F), 1, 0)
+earning_data$A <- ifelse(grepl("annual|helårs|helår|årsrapport|årsregnskap|årsmelding|year end|full year|year-end|års-", earning_data$title, ignore.case = T) & !grepl("kvartal|quarter|interim|tertial|halvårs|halvårs|halvtårs|half|delårs|semi-|Q1|Q2|Q3|Q4|H1|1H", earning_data$title, ignore.case = T), 1, 0)
 
-# Creates a dataset with only earnings dates in stock data.
-stock_data <- right_join(earning_data, stock_data, by = "Security" ) %>% 
-  mutate(AD = ifelse(date.x == date.y,1,0)) %>% 
-  subset(AD ==1) %>% select(-c(date.y, AD))
+Y2019_Q3 <- interval(ymd("2019-10-01"), ymd("2019-12-30"))
+Y2019_Q4 <- interval(ymd("2020-01-01"), ymd("2020-03-31"))
+Y2020_Q1 <- interval(ymd("2020-04-01"), ymd("2020-06-30"))
+Y2020_Q2 <- interval(ymd("2020-07-01"), ymd("2020-09-30"))
 
-colnames(stock_data)[3] <- "date"
+earning_data$quarter[earning_data$date %within% Y2019_Q3] <- "Q3"
+earning_data$quarter[earning_data$date %within% Y2019_Q4] <- "Q4"
+earning_data$quarter[earning_data$date %within% Y2020_Q1] <- "Q1"
+earning_data$quarter[earning_data$date %within% Y2020_Q2] <- "Q2"
 
-# The reson 4 observations are removed is because of holidays or no stock information
+rm(Y2019_Q3, Y2019_Q4, Y2020_Q1, Y2020_Q2)
+
+earning_data$quarter[earning_data$A == 1] <- "A"
+
+# Manually reclassify
+earning_data$quarter[earning_data$Security == "GEOSME" & earning_data$type == "annual"] <- "A"
+
+earning_data$quarter[earning_data$Security == "WILS" & earning_data$date == "2020-02-19"] <- "Q4"
+earning_data$quarter[earning_data$Security == "SRBANK" & earning_data$date == "2020-02-05"] <- "Q4"
+earning_data$quarter[earning_data$Security == "MORG" & earning_data$date == "2020-01-30"] <- "Q4"
+
+# Identify the annual reports that are released after a Q4 report
+for (i in unique(earning_data$Security)) {
+  sub <- earning_data[earning_data$Security == i,]
+  Q4 <- sub[sub$quarter == "Q4",]
+  A <- sub[sub$quarter == "A",]
+  if (nrow(Q4) > 0 & nrow(A) > 0) {
+    if (Q4$date < A$date) {
+      earning_data$remove[earning_data$Security == i & earning_data$quarter == "A"] <- 1
+    }
+  }
+}
+
+rm(A, Q4, sub, i)
+
+# Remove Sustainability report, independent audit and pilar 3 report
+earning_data$remove[earning_data$Security == "ASA" & earning_data$date == "2020-06-12"] <- 1
+earning_data$remove[earning_data$Security == "LIFEME" & earning_data$date == "2020-06-18"] <- 1
+
+earning_data$remove[earning_data$Security == "VISTIN" & earning_data$date == "2020-05-29"] <- 1
+
+earning_data$remove[earning_data$Security == "SVEG" & earning_data$date == "2020-04-28"] <- 1
+
+
+# Remove the annual reports that are released after a Q4 ++
+earning_data <- earning_data[is.na(earning_data$remove),] %>% select(-c(remove, type, Q, A))
+
+earning_data$quarter[earning_data$date %within% interval(ymd("2020-01-01"), ymd("2020-03-31"))] <- "Q4"
+
+# Remove duplicated dates with about 40 days in between
+earning_data <- earning_data %>% group_by(Security) %>% arrange(date, .by_group = TRUE) %>%  
+  mutate(DUP = ifelse(abs(difftime(date, lead(date))) <= 40,1,0)) %>% 
+  subset(DUP %in%  0| DUP %in%  NA) %>% select(-DUP)
+
+earning_data2 <- earning_data %>% group_by(Security) %>% arrange(date, .by_group = TRUE) %>%
+  mutate(DUP = ifelse(abs(difftime(date, lead(date))) == 0,1,0)) %>%
+  subset(DUP %in%  0| DUP %in%  NA) %>% select(-DUP) %>% arrange(date, .by_group = TRUE) %>%
+  mutate(diff = difftime(date, lag(date), units = c("days")),
+         DUP = ifelse(abs(difftime(date, lag(date), units = c("days"))) <= 40,1,0))
+
+earning_data2 <- earning_data %>% group_by(Security) %>% arrange(date, .by_group = TRUE) %>%
+  
+  mutate(DUP = ifelse(abs(difftime(date, lead(date))) == 0,1,0)) %>%
+  
+  subset(DUP %in%  0| DUP %in%  NA) %>% select(-DUP) %>% arrange(date, .by_group = TRUE) %>%
+  
+  mutate(diff = difftime(date, lag(date), units = c("days")),
+         
+         DUP = ifelse(quarter == lag(quarter) ,1,0))
 
 
 
+# remove shitty observations
+earning_data <- earning_data[!(earning_data$Security == "LSG" & earning_data$date == as.Date("2020-01-08")),]
+earning_data <- earning_data[!(earning_data$Security == "SBVG" & earning_data$date == as.Date("2020-03-24")),]
 
-# Accounting variables ----------------------------------------------------
+# Rename Annual reports to Q4?
+earning_data$quarter[earning_data$date %within% interval(ymd("2020-01-01"), ymd("2020-03-31"))] <- "Q4"
+
+
+# EPS data
+EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2) %>% 
+  mutate(ES_4 = NA)
+
+EPS$Security <- gsub(" .*$", "", EPS$Security, ignore.case = T)
+
+
+colnames(EPS)[3] <- "eps"
+
+# EPS last year
+for (i in 1:length(EPS$Security)){
+  x <- EPS$eps[EPS$Security == EPS$Security[i] & year(EPS$date) == year(EPS$date[i]) - 1 & EPS$quarter == EPS$quarter[i]]
+  if (length(x) > 0) {
+    EPS$ES_4[i] <- x
+  }
+}
+
+
+# Calculate estimated EPS using same quarter last year and a drift tem eaqual to the average change between quarters
+EPS <- EPS %>% group_by(Security) %>% 
+  mutate(ES_4d = ES_4 + c(NA, cumsum(na.omit(c(NA,diff(eps)))))/(1:n()-1)) %>% 
+  filter(date > as.Date("2019-12-30"))
+
+# Combine earnings data with EPS data
+earning_data <- merge(earning_data, EPS[,-2] , by = c("Security", "quarter"))
+
+rm(EPS)
 
 # Create dataframe for accounting variables:
 # remove some unneccesary variables as well as PX_TO_BOOK as Book to market had more obs.
@@ -188,168 +273,141 @@ acc_vars$date <- as.Date(acc_vars$date)
 acc_vars$date5 <- as.Date(as.numeric(acc_vars$date5), origin = "1899-12-30") 
 
 
-# Create temporary datasets with values of interest that are later merged togheter
-# The same logic is used for the other variables as well
+# Combine earnings data with consensus analyst forcast of EPS
 temp1 <- acc_vars%>% 
-  select(Security, date6, estimated, actual, MARKET_CAPITALIZATION_TO_BV)
+  select(Security, date6, estimated, actual) %>% # add book to market somewhere else
+  filter(estimated != "#N/A N/A" & actual != "#N/A N/A" & year(date6) > 2019)
 
 colnames(temp1)[2] <- "date"
 
-temp2 <- merge(temp1, earning_data[-2], by = 1:2 , all = F)
-stock_data <- merge(temp2, stock_data, by = c("Security", "date"), all.y = T)%>% 
+earning_data <- right_join(temp1, earning_data[-c(3)], by = c("Security","date") , all = F)
+
+rm(temp1)
+
+# Combine with stock data
+stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
+
+stock_data <- merge(stock_data, earning_data, by = c("Security", "date")) %>% 
   mutate_at(c("actual","estimated"),as.numeric) # need to make values numeric
 
-rm(temp1,temp2, earning_data)
+# Remove SOFF as this company had extreme values
+stock_data <- stock_data %>% filter(Security != "SOFF")
 
+# Incorporating accounting variables
 
-
-# Load historical data
-library(forecast)
-
-EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2) %>% 
-  rename(eps = EPS)
-EPS$Security <- gsub(" .*$", "", EPS$Security)
-
-# First model
-EPS$model1 <- NA
-
-for (i in 1:length(EPS$Security)){
-  x <- EPS$eps[EPS$Security == EPS$Security[i] & year(EPS$date) == year(EPS$date[i]) - 1 & EPS$quarter == EPS$quarter[i]]
-  if (length(x) > 0) {
-    EPS$model1[i] <- x
-  }
-}
-
-rm(i, x)
-
-summary(EPS$model1) # Shows NA's
-EPS$model1[is.na(EPS$model1) & year(EPS$date) == "2020"] %>% length() # NA's in 2020
-EPS$model1[!is.na(EPS$model1) & year(EPS$date) == "2020"] %>% length() # not NA's in 2020
-
-# Second model - with drift
-EPS <- EPS %>% group_by(Security) %>%
-  mutate(model2 = model1 + c(NA, cumsum(na.omit(c(NA, diff(eps)))))/(1:n()-1))
-
-
-# Merge with stockdata
-# Make a temp column with year to match the dataframes
-EPS$year <- year(EPS$date)
-stock_data$year <- year(stock_data$date)
-stock_data <- merge(stock_data, EPS[-2], by = c("Security", "quarter", "year"), all.x = T)
-
-
-
-# Earnings surprise
-earnings_calc <- function(EPSactual, EPSestimated) {
-  stock_data$ES <<- (EPSactual - EPSestimated)/ifelse(is.na(stock_data$PX_5),stock_data$PX_LAST,stock_data$PX_5)
-  
-  stock_data$ES_quantile <<- cut(stock_data$ES,
-                                     breaks = quantile(stock_data$ES, seq(0, 1, l = 6), na.rm = T, type = 8),
-                                     labels = c("Q1","Q2","Q3","Q4","Q5"),
-                                     include.lowest = TRUE)
-  
-  # CAR1
-  stock_data %>% select(news_q, ES_quantile, CAR1) %>%
-    filter(news_q == "N1" | news_q == "N5") %>%
-    group_by(news_q,ES_quantile) %>%
-    summarise(m_CAR1 = mean(CAR1, na.rm = T)) %>% ungroup() %>%
-    
-    ggplot(., aes(x=ES_quantile, y = m_CAR1, group=news_q)) +
-    geom_line(aes(colour = news_q)) + 
-    geom_point()
-  
-}
-
-# Analyst Consensus
-earnings_calc(stock_data$actual, stock_data$estimated)
-stock_data$ES[!is.na(stock_data$ES)] %>% length()
-
-# Foster model 1
-earnings_calc(stock_data$eps, stock_data$model1)
-stock_data$ES[!is.na(stock_data$ES)] %>% length()
-
-# Foster model 2
-earnings_calc(stock_data$eps, stock_data$model2)
-stock_data$ES[!is.na(stock_data$ES)] %>% length()
-
-
-
-# Try to integrade in function 
-# Can't get the function to make two plots :/
-CAR40 <- function(){
-  # CAR40
-  stock_data %>% select(news_q, ES_quantile, CAR40) %>%
-    filter(news_q == "N1" | news_q == "N5") %>%
-    group_by(news_q,ES_quantile) %>%
-    summarise(m_CAR40 = mean(CAR40, na.rm = T)) %>% ungroup() %>%
-    
-    ggplot(., aes(x=ES_quantile, y = m_CAR40, group=news_q)) +
-    geom_line(aes(colour = news_q)) + 
-    geom_point()
-}
-
-
-
-
-
-# Mean percentage of institutional ownership (IO) in a given month
+# Dates, month, year for each security
 temp1 <- acc_vars %>% select(Security, date) %>% 
   mutate(month = month(date),
          year = year(date) )
 
-temp2 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>% 
-  mutate(month = month(date3),
-         year = year(date3) ) %>% 
+# Mean number of analysts
+temp2 <- acc_vars %>% select(Security, date, date5, TOT_ANALYST_REC) %>% 
+  mutate(month = month(date5),year = year(date5) ) %>% 
+  group_by(Security, year, month) %>% 
+  summarize(mean_analyst = mean(TOT_ANALYST_REC, na.rm = T))
+
+# Mean institutional ownership
+temp3 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>% 
+  mutate(month = month(date3), year = year(date3) ) %>% 
   group_by(Security, year, month) %>% 
   summarize(mean_IO_share = mean(EQY_INST_PCT_SH_OUT))
 
-temp3 <- merge(temp1,temp2, all.x = T) %>% select(-c("year", "month"))
-
-stock_data <- merge(temp3, stock_data, by = c("Security", "date"))
-
-rm(temp1, temp2, temp3)
-
-
-# Mean number of analysts in a given month
-
-temp1 <- acc_vars %>% select(Security, date) %>% 
-  mutate(month = month(date),
-         year = year(date) )
-
-temp2 <- acc_vars %>% select(Security, date, date5, TOT_ANALYST_REC) %>% 
-  mutate(month = month(date5),
-         year = year(date5) ) %>% 
+# Mean market to book and shares outstanding
+temp4 <- acc_vars %>% select(Security, date, MARKET_CAPITALIZATION_TO_BV, EQY_SH_OUT) %>% 
+  mutate(month = month(date), year = year(date) ) %>% 
   group_by(Security, year, month) %>% 
-  summarize(mean_analyst = mean(TOT_ANALYST_REC))
+  summarize(mean_MtoB = mean(MARKET_CAPITALIZATION_TO_BV),
+            mean_share = mean(EQY_SH_OUT))
 
-temp3 <- merge(temp1,temp2, all.x = T) %>% select(-c(month, year))
+# Merge all temporary dataframes togheter using reduce
+temp5 <- Reduce(function(x,y) merge(x = x, y = y, all.x = T), 
+                list(temp1, temp2, temp3, temp4)) %>% select(-c(month, year))
 
-stock_data <- merge(temp3, stock_data, by = c("Security", "date"))
+# Combine with stock data
+stock_data <- merge(temp5, stock_data, by = c("Security", "date"))
 
-rm(temp1, temp2, temp3)
+rm(temp1, temp2, temp3, temp4, temp5, acc_vars)
 
-# Change NA values in mean_analyst to 0
 stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
 
 # Share turnover
-temp <- acc_vars %>% select(Security, date4, EQY_SH_OUT) # We want to add EQY_SH_OUT to main dataframe
-colnames(temp)[2] <- "date"
+stock_data$EQY_SH_OUT <- stock_data$mean_share * 10^6 # It was formatted in mill
+stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$mean_share
 
-stock_data <- merge(temp, stock_data, by = 1:2, all.y = T) # If all.y = F, we loose 3 observations, dont know if they are needed tho
-rm(temp)
-
-stock_data$EQY_SH_OUT <- stock_data$EQY_SH_OUT * 10^6 # It was formatted in mill
-stock_data$share_turnover <- stock_data$PX_VOLUME / stock_data$EQY_SH_OUT
-
-rm(acc_vars, EPS)
+assign("last.warning", NULL, envir = baseenv()) # removes warning messages
 
 
+#stock_data$news_q <- stock_data$news_Q2
+
+# Earnings surprise
+earnings_calc <- function(EPSactual, EPSestimated, variable) {
+  stock_data$ES <<- (EPSactual - EPSestimated)/ifelse(is.na(stock_data$PX_normal),stock_data$PX_LAST,stock_data$PX_normal)
+  
+  stock_data$ES_quantile <<- cut(stock_data$ES,
+                                 breaks = quantile(stock_data$ES, seq(0, 1, l = 6), na.rm = T, type = 8),
+                                 labels = c("Q1","Q2","Q3","Q4","Q5"),
+                                 include.lowest = TRUE)
+  
+  stock_data$plot <- variable
+  
+  # plot
+  stock_data %>% select(news_q, ES_quantile, plot) %>%
+    filter(news_q == "N1" | news_q == "N5") %>%
+    group_by(news_q,ES_quantile) %>%
+    summarise(mean = mean(plot, na.rm = T)) %>% ungroup() %>%
+    na.omit(ES) %>% 
+    
+    ggplot(., aes(x = ES_quantile, y = mean, group = news_q)) +
+    geom_line(aes(colour = news_q)) + 
+    geom_point() +
+    labs(title = paste0("Average ", gsub("^.+\\$", "", deparse(substitute(variable))), " for Each Earnings Surprise Quantile"),
+         subtitle = paste0("EPS Estimate Model = ", gsub("^.+\\$", "", deparse(substitute(EPSestimated)))),
+         x = "ES Quantile", y = gsub("^.+\\$", "", deparse(substitute(variable)))) + # Give right variable name inside plot
+    theme_bw()
+}
+
+
+# Analyst Consensus
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$CAR1)
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$CAR40)
+
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$AV_alt) 
+
+earnings_calc(stock_data$actual, stock_data$estimated, stock_data$VOLATILITY_30D) # need to update later
+
+stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
+
+
+# Foster model 1
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$CAR1)
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$CAR40)
+
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$AV_alt)
+
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$VOLATILITY_30D)
+
+stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
+
+
+# Foster model 2
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40)
+
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$AV_alt)
+
+summary(stock_data)
+
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$VOLATILITY_30D)
+
+stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
 
 
 
 
 # Regression analysis -----------------------------------------------------
+
+
 df <- stock_data %>% 
   select(news_q, ES, CUR_MKT_CAP, MARKET_CAPITALIZATION_TO_BV, mean_analyst, mean_IO_share, share_turnover) %>% 
   group_by(news_q) %>% 
@@ -392,9 +450,9 @@ df <- stock_data %>%
 
 lm.fit <- stock_data %>% 
   select(news_q, ES, ES_quantile, CAR1, CAR40) %>% 
-  mutate(N10 = ifelse(stock_data$news_q == "N10", 1, 0),
-         Q10 = ifelse(stock_data$ES_quantile == "Q10", 1, 0)) %>% 
-  lm(CAR1 ~ Q10 + N10 + Q10*N10, data=.)
+  mutate(N5 = ifelse(stock_data$news_q == "N5", 1, 0),
+         Q5 = ifelse(stock_data$ES_quantile == "Q5", 1, 0)) %>% 
+  lm(CAR1 ~ Q5 + N5 + Q5*N5, data=.)
 
 summary(lm.fit)
 
@@ -453,32 +511,6 @@ waldtest(lm.fit) # can test for heteroskedacity?
 
 
 # Various plots -------------------------------------------------------------------
-# Plot of market over time
-test %>% ggplot(.,aes(x=date, y=total_mkt_cap/3435)) + #divide by 3435 to make it look similar to that of OSBX
-  ylim(550, 900) +
-  geom_line() +
-  ggtitle("Market over time for all stocks listed on OSBX") +
-  labs(y = "Normalized market value") +
-  theme_bw()
-
-# Plot of return over time
-test %>% ggplot(.,aes(x=date, y=return)) +
-  #ylim(550, 900) +
-  geom_line() +
-  ggtitle("Market return over time for all stocks listed on OSBX") +
-  labs(y = "Return") +
-  theme_bw()
-
-
-# Graph of trading volume over time
-stock_data %>% 
-  group_by(date) %>% 
-  summarize(total_volume = sum(PX_VOLUME)) %>% ungroup %>% 
-  ggplot(., aes(x=date, y=total_volume/10^6)) +
-  geom_line() +
-  ggtitle("Total trading volume over time") +
-  labs(y = "Million trades", x= "Date") +
-  theme_bw()
 
 # Graph of trading volume over time
 # Differentiating between company size.
@@ -505,21 +537,8 @@ grouped_df %>%
   labs(y = "Million trades") +
   theme_bw()
 
-# Could it be that most of this variation in volume is caused by Norwegian?
-tot_vol <- stock_data %>% 
-  group_by(Security) %>% 
-  summarize(total_volume = sum(PX_VOLUME))
-# No.. KOA has had most trades over the period.
 
-tot_vol2 <- stock_data %>% 
-  group_by(Security) %>%
-  summarize(avg_mkt_cap = mean(CUR_MKT_CAP, na.rm = T)) %>%
-  remove_missing() %>% 
-  mutate(Size_Level = cut(avg_mkt_cap,
-                          quantile(avg_mkt_cap, c(0, .25, .75, 1)),
-                          labels = c('Small', 'Medium', 'Big'),
-                          include.lowest = TRUE)) %>% 
-  merge(.,tot_vol, by = "Security")
+
 
 stock_data %>% 
   select(date, AV_ODEEN) %>% 
@@ -554,43 +573,5 @@ stock_data %>%
 
 
 
-
-
-
-# Alternative EPS calculations --------------------------------------------
-library(data.table)
-
-
-EPS <- read_excel("Stock_data/bloomber_EPS.xlsx", sheet = 2)
-EPS$Security <- gsub(" .*$", "", EPS$Security)
-
-EPS <- EPS[!is.na(EPS$IS_EPS) == T,] # 4512 observations
-EPS <- EPS[!is.na(EPS$date) == T,] # 3785 observations with a date
-EPS <- EPS[year(EPS$date) == 2020,] # 519 observations in 2020
-  
-Y2019_Q3 <- interval(ymd("2019-10-01"), ymd("2019-12-30"))
-Y2019_Q4 <- interval(ymd("2020-01-01"), ymd("2020-03-31"))
-Y2020_Q1 <- interval(ymd("2020-04-01"), ymd("2020-06-30"))
-Y2020_Q2 <- interval(ymd("2020-07-01"), ymd("2020-09-30"))
-
-EPS$Q[EPS$date %within% Y2019_Q3] <- "2019Q3"
-EPS$Q[EPS$date %within% Y2019_Q4] <- "2019Q4"
-EPS$Q[EPS$date %within% Y2020_Q1] <- "2020Q1"
-EPS$Q[EPS$date %within% Y2020_Q2] <- "2020Q2"
-
-
-EPS_alt <- acc_vars[, c(1,10,11,12)]
-
-EPS_alt <- EPS_alt[!is.na(EPS_alt$estimated) == T,] # 12235 observations
-EPS_alt <- EPS_alt[!EPS_alt$estimated == "#N/A N/A",] # 6833 observations
-EPS_alt <- EPS_alt[year(EPS_alt$date6) == 2020,] # 614 observations in 2020
-
-
-EPS_alt$Q[EPS_alt$date %within% Y2019_Q3] <- "2019Q3"
-EPS_alt$Q[EPS_alt$date %within% Y2019_Q4] <- "2019Q4"
-EPS_alt$Q[EPS_alt$date %within% Y2020_Q1] <- "2020Q1"
-EPS_alt$Q[EPS_alt$date %within% Y2020_Q2] <- "2020Q2"
-
-compare <- merge(EPS, EPS_alt, by = c("Security", "Q"), all.y = T)
 
 

@@ -1,14 +1,13 @@
 library(readxl)
 library(tidyverse)
+library(lubridate)
+library(stringr)
+library(lmtest)
+library(sandwich)
 
 # Loading and preparing data ----------------------------------------------
-news_data <- read_xlsx("NRK/Artikler NRK.no oktober 2019-september 2020.xlsx")
-
-# Rename columns
-news_data <-
-  news_data %>% 
-  rename(
-    date = `Dato publisert`,
+news_data <- read_xlsx("NRK/Artikler NRK.no oktober 2019-september 2020.xlsx") %>% 
+  rename( date = `Dato publisert`, # Rename columns
     title = `Artikkel Tittel`,
     pageviews = Pageviews,
     pageviews_mobile = `Pageviews Mobile`,
@@ -19,164 +18,167 @@ news_data <-
     subject = Subjekt,
     url = Url,
     word_count = Wordcount)
-
-# Select columns we want to work with
-news_data <-
-  news_data %>% 
+  
+news_data <- news_data %>% 
   select(date, title, pageviews, pageviews_mobile, xl, read_time, read_time_total,
-         sentences_count, subject, url, word_count) %>% 
-  mutate(xl = ifelse(xl == 'XL', 1, 0) ) # Dummy varible for XL articles
+         sentences_count, subject, url, word_count) %>% # Select columns we want to work with
+  mutate(xl = ifelse(xl == 'XL', 1, 0)) %>% # Dummy varible for XL articles
+  subset(!is.na(news_data$subject)) # Remove all articles that doesn't have subject
 
-
-# Remove all articles that doesn't have subject
-news_data <- subset(news_data, !is.na(news_data$subject))
-
-
-# Plotting all articles ---------------------------------------------------
-# Pageviews
-news_data %>% 
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews)) %>%
-  
-  ggplot(., aes(x = as.Date(date), y = clicks.sum/(10^6),  )) +
-  #geom_bar(stat = "identity", fill = "lightblue") +
-  geom_line() +
-  geom_smooth(method = "lm", color = "darkgray") +
-  labs(title = "Total Pageviews of All Articles by NRK (MILL)",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Million pageviews") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
-
-# Readtime
-news_data %>% 
-  select(date, read_time_total) %>% 
-  group_by(date) %>% 
-  summarise(time.sum = sum(read_time_total)) %>% 
-  
-  ggplot(., aes(x = as.Date(date), y = time.sum/360)) +
-  geom_bar(stat = "identity", fill = "lightblue") +
-  geom_smooth(method = "lm", color = "darkgray") +
-  labs(title = "Total readtime of All Articles by NRK (hours)",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Number of hours read") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
-
-
-# Format Corona data ------------------------------------------------------
 
 # Creates a new subset of all corona articles 
-news_corona <- news_data[grep("Covid-19|korona", news_data$subject, ignore.case = T), ]
+news_corona <- news_data[grep("Covid-19|korona", news_data$subject, ignore.case = T), ] %>%  # Corona articles
+  mutate(type = "corona")
+
+# Remove economic subjects
+#news_data <- news_data[!grepl("?konomi|n?ringsliv", news_data$subject, ignore.case = T), ]
+
 sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
 
-news_not_corona <- news_data[!grepl("Covid-19|korona", news_data$subject, ignore.case = T), ]
+news_other <- news_data[!grepl("Covid-19|korona", news_data$subject, ignore.case = T), ] %>% # Other atricles
+  mutate(type = "other")
 
 #write.csv(news_data, file = "Stock_data/news_data.csv")
 #write.csv(news_corona, file = "Stock_data/news_corona.csv")
 #write.csv(news_not_corona, file = "Stock_data/news_not_corona.csv")
 
 
-# Amount of articles ------------------------------------------------------
-# Making a plot of corona articles over time
-table_corona_articles <- as.data.frame(table(news_corona$date))
-table_corona_articles$Var1 <- as.Date(table_corona_articles$Var1)
-
-# Histogram
-ggplot(data = table_corona_articles, aes(x = Var1, y = Freq)) +
-  geom_bar(stat = "identity", fill = "lightblue") + # Uncomment to show
-  # geom_line(color = "darkblue") + # Uncomment to show
-  labs(title = "Amount of Corona Articles by NRK",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Number of Articles") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
-
-d <- news_corona$date
-d <- as.Date(d)
-date_range <- seq(min(d), max(d), by = 1) 
-date_range[!date_range %in% d] 
-
-
-
-
-
-# Clicks of corona articles -----------------------------------------------
-# Making a plot of clicks of corona articles over time
-
-ggplot(news_corona, aes(x = date, y = pageviews)) + 
-  geom_point() # Remove outliers?
-
-# Top read time articles
-news_corona %>% 
-  select(title, as.numeric(pageviews)) %>% 
-  sort(pageviews, decreasing = T) # F?r ikke denne til ? funke plutselig
-
-# Plotting total pageviews per day of all articles
-news_corona %>% 
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews)) %>%
+# Plotting ---------------------------------------------------
+# Number of articles
+news_articles <- function(data) {
+  plot <- data
   
-  ggplot(., aes(x = as.Date(date), y = clicks.sum/(10^6))) +
-  geom_bar(stat = "identity", fill = "lightblue") +
-  labs(title = "Total Pageviews of Corona Articles by NRK (MILL)",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Million pageviews") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+  table <- as.data.frame(table(data$date))
+  table$Var1 <- as.Date(table$Var1)
+  
+  ggplot(data = table, aes(x = Var1, y = Freq)) +
+    geom_bar(stat = "identity", fill = "lightblue") + # Uncomment to show
+    # geom_line(color = "darkblue") + # Uncomment to show
+    labs(title = "Amount of Corona Articles by NRK",
+         subtitle = "October 2019 - September 2020",
+         x = "Date", y = "Number of Articles") +
+    scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1))
+}
+
+news_articles(news_data)
+news_articles(news_corona) # Amount of Corona articles over time
+news_articles(news_other)
+
+
+
+# Other variables
+news_variables <- function(data, variable){
+  
+  plot <- data
+  plot$plot <- variable
+  
+  # Millions with pageviews? ++ Add this
+  # Also hours with total read time
+  
+  plot %>% 
+    select(date, plot) %>% 
+    group_by(date) %>% 
+    summarise(clicks.sum = sum(plot)) %>%
+    
+    ggplot(., aes(x = as.Date(date), y = clicks.sum)) +
+    geom_line() +
+    geom_smooth(method = "lm", color = "darkgray") +
+    labs(title = paste0("Total ", str_to_sentence(gsub("^.+\\$", "", deparse(substitute(variable)))), " of All ", str_to_sentence(data$type[1]), " Articles by NRK"),
+         # subtitle = "October 2019 - September 2020",
+         x = "Date", y = str_to_sentence(gsub("^.+\\$", "", deparse(substitute(variable))))) +
+    scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1))
+}
+
+# All articles
+news_variables(news_data, news_data$pageviews)
+news_variables(news_data, news_data$read_time)
+news_variables(news_data, news_data$read_time_total)
+
+# Corona articles
+news_variables(news_corona, news_corona$pageviews)
+news_variables(news_corona, news_corona$read_time)
+news_variables(news_corona, news_corona$read_time_total)
+
+# Not corona articles
+news_variables(news_other, news_other$pageviews)
+news_variables(news_other, news_other$read_time)
+news_variables(news_other, news_other$read_time_total)
 
 
 
 
+# Comparing two types of data -------------------------------
+news_compare <- function(data1, data2, variable, normalized = "No", interval = "daily"){
+ 
+  plot1 <- data1
+  plot2 <- data2
+  plot1$plot <- data1[, variable]
+  plot2$plot <- data2[, variable]
+  
+  #This is not done
+  plot1$time <- ifelse(interval == "weekly", strftime(plot1$date, format = "%V"), plot1$date) 
+  plot2$time <- ifelse(interval == "weekly", strftime(plot2$date, format = "%V"), plot2$date)
+  
+  temp1 <- plot1 %>% 
+    select(date, plot) %>% 
+    mutate(nr_articles = n_distinct(date)) %>% 
+    group_by(date) %>% 
+    summarise(sum = sum(plot), articles_sum = n()) %>% 
+    mutate(pr_article = sum/articles_sum) %>% 
+    mutate(type = plot1$type[1])
+  
+  temp2 <- plot2 %>% 
+    select(date, plot) %>% 
+    mutate(nr_articles = n_distinct(date)) %>% 
+    group_by(date) %>% 
+    summarise(sum = sum(plot), articles_sum = n()) %>% 
+    mutate(pr_article = sum/articles_sum) %>%
+    mutate(type = plot2$type[1])
+  
+  temp <- rbind(temp1, temp2)
+  temp$plotting <- unlist(temp[, ifelse(normalized == "Yes", "pr_article", "sum")])
+    
+  temp %>% 
+    ggplot(., aes(x = as.Date(date), y = plotting, color = type)) +
+    geom_line() +
+    labs(title = "Total Pageviews of Corona Articles (pink) and All Other Articles (blue) by NRK (MILL)",
+         subtitle = "October 2019 - September 2020",
+         x = "Date", y = "Million pageviews") +
+    scale_x_date(date_labels = "%d %b %Y", date_breaks  ="1 month") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1))
+}
 
 
+## Not normalized, daily
+# Compare Corona to all other articles
+news_compare(news_corona, news_other, "pageviews")
+news_compare(news_corona, news_other, "read_time")
+news_compare(news_corona, news_other, "read_time_total")
+
+# Compare Corona to all articles
+news_data$type <- "all"
+news_compare(news_corona, news_data, "pageviews")
+news_compare(news_corona, news_data, "read_time")
+news_compare(news_corona, news_data, "read_time_total")
 
 
-# Comparing corona articles to all articles -------------------------------
-# Pageviews of Corona articles compared to ALL articles
-news_plot_all <- news_data %>% # Sum of total pageview for all articles by date
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks_sum= sum(pageviews)) %>% 
-  mutate(type = "all") 
+## Normalized, daily
+# Compare Corona to all other articles
+news_compare(news_corona, news_other, "pageviews", "Yes")
+news_compare(news_corona, news_other, "read_time", "Yes")
+news_compare(news_corona, news_other, "read_time_total", "Yes")
 
-news_plot_corona <- news_corona %>% # Sum of total pageviews for corona aricles by date
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks_sum = sum(pageviews)) %>% 
-  mutate(type = "corona")
+# Compare Corona to all articles
+news_compare(news_corona, news_data, "pageviews", "Yes")
+news_compare(news_corona, news_data, "read_time", "Yes")
+news_compare(news_corona, news_data, "read_time_total", "Yes")
 
-news_plot_ncorona <- news_not_corona %>% # Sum of total pageviews for all not corona aricles by date
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks_sum = sum(pageviews)) %>% 
-  mutate(type = "other")
-
-# Compare Corona to ALL atricles and all non corona articles
-news_plot_table <- rbind(news_plot_all, news_plot_corona, news_plot_ncorona)
-
-# Compare Corona to ALL atricles
-news_plot_table <- rbind(news_plot_all, news_plot_corona)
-
-# Compare Corona to all non corona articles
-news_plot_table <- rbind(news_plot_corona, news_plot_ncorona)
-
-rm(news_plot_all, news_plot_corona, news_plot_ncorona) # Remove elements not needed anymore
-
-ggplot(data = news_plot_table, aes(x = as.Date(date), y = clicks_sum/10^6, color = type)) +
-  geom_line() +
-  labs(title = "Total Pageviews of Corona Articles (pink) and All Other Articles (blue) by NRK (MILL)",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Million pageviews") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+news_compare(news_corona, news_other, "pageviews", "No", "Weekly") # Not working yet
 
 
 # PERCENT of articles that were related to corona on a day 
@@ -204,61 +206,51 @@ ggplot(news_plot_table, mapping = aes(x = as.Date(date), y = clicks_sum, fill = 
 
 
 
+# Weekly data
+news_corona$week <- week(as.Date(news_corona$date, format = "%Y-%m-%d"))
+news_corona$year <- year(as.Date(news_corona$date, format = "%Y-%m-%d"))
+
+news_other$week <- week(as.Date(news_other$date, format = "%Y-%m-%d"))
+news_other$year <- year(as.Date(news_other$date, format = "%Y-%m-%d"))
 
 
-# Readtime of corona articles ---------------------------------------------
-# Making a plot of reading time of corona articles over time
-ggplot(news_corona, aes(x = date, y = read_time_total)) + 
-  geom_point() # Plot of all articles by date (remove outliers?)
-
-# Top read time articles
-news_corona %>% 
-  select(title, as.numeric(read_time_total)) %>% 
-  sort(read_time_total, decreasing = T)
-
-## Formating the data for plotting total hours per day of all articles
-news_corona %>% 
-  select(date, read_time_total) %>% 
-  group_by(date) %>% 
-  summarise(time.sum = sum(read_time_total)) %>% 
+temp1 <- news_corona %>% 
+  select(date, year, week, pageviews, type) %>% 
+  group_by(year, week) %>% 
+  mutate(sum_page = sum(pageviews), articles_sum = n()) %>% 
+  mutate(pr_article = sum_page/articles_sum)
   
-  ggplot(data = table_corona_time, aes(x = as.Date(date), y = time.sum/360)) +
-  geom_bar(stat = "identity", fill = "lightblue") +
-  labs(title = "Total readtime of Corona Articles by NRK (hours)",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Number of hours read") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+temp2 <- news_other %>% 
+  select(date, year, week, pageviews, type) %>% 
+  group_by(year, week) %>% 
+  mutate(sum_page = sum(pageviews), articles_sum = n()) %>% 
+  mutate(pr_article = sum_page/articles_sum)
+  
+temp <- rbind(temp1, temp2) %>% group_by(week) %>% filter(!duplicated(pr_article))
 
-# Doing the same without XL articles (29 articles of 3660 - don't expect a lot)
-table_corona_time_noxl <- news_corona[news_corona$xl != 1, ]
+rm(temp1, temp2)
 
-table_corona_time_noxl <- news_corona %>% 
-  select(date, read_time_total) %>% 
-  group_by(date) %>% 
-  summarise(time.sum = sum(read_time_total))
-
-table_corona_time_noxl$date <- as.Date(table_corona_time_noxl$date)
-
-ggplot(data = table_corona_time_noxl, aes(x = date, y = time.sum)) +
-  geom_bar(stat = "identity", fill = "lightblue") +
-  labs(title = "Total readtime of Corona Articles by NRK (hours), no XL articles",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Number of hours read") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1)) # Pretty much no difference - don't think we need to do this
+temp %>% 
+  ggplot(., aes(x = as.Date(date), y = sum_page, color = type)) +
+  geom_line() +
+    labs(title = "Total Pageviews of Corona Articles (pink) and All Other Articles (blue) by NRK (MILL)",
+         subtitle = "October 2019 - September 2020",
+         x = "Date", y = "Million pageviews") +
+    scale_x_date(date_labels = "%d %b %Y", date_breaks = "1 month") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 
 
 
 
-# Analzing the different subjects -----------------------------------------
+
+
+
+# Formating finance news --------------------------------------------------
+# Analzing the different subjects
 subjects <- strsplit(news_data$subject, split = ";") %>% 
-  unlist() %>% 
-  tolower() %>% 
-  unique()  # All unique subjects
+  unlist() %>% tolower() %>% unique()  # All unique subjects
 
 # Most frequent subjects
 table(subjects_all) %>% 
@@ -266,12 +258,6 @@ table(subjects_all) %>%
   head(100)
 
 table_sub <- as.data.frame(table(subjects_all))
-
-
-
-
-
-# Formating finance news --------------------------------------------------
 # Piciking finance subjects
 test_finance <- news_data[grep("politikk", news_data$subject, ignore.case = T), ] # Change subject to investegate what articles are in it
 test_finance[sample(nrow(test_finance), 20), 1:2]
@@ -279,7 +265,8 @@ test_finance[sample(nrow(test_finance), 20), 1:2]
 # Mest relevat er ?konomi, Equinor, olje og gass, teknologi og data, 
 # Litt mer usikker p? temaene politikk, Donald Trump, USA osv.
 # Subsetting with all chosen finance subjects
-news_finance <- news_data[grep("?konomi|trump|teknologi|energi|reiseliv|olje|equinor|fiskeri|n?ringsliv", news_data$subject, ignore.case = T), ]
+news_finance <- news_data[grep("?konomi|trump|teknologi|energi|reiseliv|olje|equinor|fiskeri|n?ringsliv", news_data$subject, ignore.case = T), ] %>% 
+  mutate(type = "finance")
 
 #news_finance <- news_finance[grep("", news_data$full_text, ignore.case = T), ] # When we add full text we can add words that have to be included
 #news_finance <- news_finance[-grep("", news_data$full_text, ignore.case = T), ] # Words we want to exclue - maybe we want to remove articles which mentions corona 5 or more times or something?
@@ -287,133 +274,136 @@ news_finance <- news_data[grep("?konomi|trump|teknologi|energi|reiseliv|olje|equ
 # Random sample of articles form this sample (to check that they match)
 news_finance[sample(nrow(news_finance), 20), 1:2]
 
-# Making a plot of corona articles over time
-table_finance <- as.data.frame(table(news_finance$date))
-table_finance$Var1 <- as.Date(table_finance$Var1)
-
-
-
 
 # Plotting finance articles -----------------------------------------------
 # Number of finance articles by day
-ggplot(data = table_finance, aes(x = Var1, y = Freq)) +
-  geom_bar(stat = "identity", fill = "lightblue") +
-  labs(title = "Amount of Articles by NRK on Finance Related Topics",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Number of Articles") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+news_articles(news_finance)
 
-# Clicks on finance articles
-ggplot(news_finance, aes(x = date, y = pageviews)) + 
-  geom_point() # Remove outliers?
-# "Sp?rsm?l og svar om koronautbruddet" - This article has insane hits, think we should remove
+news_variables(news_finance, news_finance$pageviews) # Clicks on finance articles
+news_variables(news_finance, news_finance$read_time) # Average read time on finance articles
+news_variables(news_finance, news_finance$read_time_total) # Total read time on finance articles
 
-# Total number of pageviews by day of finance news
-news_finance %>% 
-  select(date, pageviews) %>% 
-  group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews)) %>%
-  
-  ggplot(., aes(x = as.Date(date), y = clicks.sum/(10^6))) +
-  geom_bar(stat = "identity", fill = "lightblue") +
-  geom_line() +
-  geom_smooth(method = "lm", color = "darkgray") +
-  labs(title = "Total Pageviews of Finance Articles by NRK (MILL)",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Million Pageviews") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
-
-# Total number of pageviews by day of finance news
-news_finance %>% 
-  select(date, read_time) %>% 
-  group_by(date) %>% 
-  summarise(readtime.sum = sum(read_time)) %>%
-  
-  ggplot(., aes(x = as.Date(date), y = readtime.sum/(360))) +
-  geom_bar(stat = "identity", fill = "lightblue") +
-  geom_line() +
-  geom_smooth(method = "lm", color = "darkgray") +
-  labs(title = "Total Read Time of Finance Articles by NRK (hours)",
-       subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Hours of Read Time") +
-  scale_x_date(date_labels = "%d %b %Y",date_breaks  ="1 month") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 
 
 # Ecnonometric analysis
-
-
 # Create dataset
-news_data <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
-news_corona <- read.csv("Stock_data/news_corona.csv") %>%  select(-X)
-news_not_corona <- read.csv("Stock_data/news_not_corona.csv") %>%  select(-X)
+#news_data <- read.csv("Stock_data/news_data.csv") %>%  select(-X)
+news_corona <- read.csv("Stock_data/news_corona.csv")[,-1] %>% 
+  mutate(type = "corona",
+         day = format(as.Date(date),"%A"), 
+         month = format(as.Date(date),"%B"),
+         year = year(date)) %>% 
+  filter(!day == unique(day)[1] & !day == unique(day)[2] & !month == unique(month)[9])
+
+news_other <- read.csv("Stock_data/news_not_corona.csv")[,-1] %>% 
+  mutate(type = "other",
+         day = format(as.Date(date),"%A"), 
+         month = format(as.Date(date),"%B"),
+         year = year(date)) %>% 
+  filter(!day == unique(day)[2] & !day == unique(day)[3] & !month == unique(month)[1] & year == "2020") %>% 
+  drop_na()
 
 
-# Formatting newsdata for regression 
-news_data_formatted1 <- news_not_corona %>% 
-  select(date, pageviews) %>% 
-  mutate(nr_articles = n_distinct(date)) %>% 
+# Formatting newsdata for regression
+# Other news
+news_data_formatted1 <- news_other %>% 
+  select(date, pageviews, read_time_total) %>% 
   group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
-  mutate(clicks_article = clicks.sum/articles.sum)
+  summarise(clicks_sum = sum(pageviews), 
+            read_sum = sum(read_time_total, na.rm = T),
+            articles_sum = n()) %>%
+  mutate(clicks_article = clicks_sum/articles_sum,
+         read_article = read_sum/articles_sum)
 
+#Corona
 news_data_formatted2 <- news_corona %>% 
-  select(date, pageviews) %>% 
-  mutate(nr_articles = n_distinct(date)) %>% 
+  select(date, pageviews, read_time_total) %>% 
   group_by(date) %>% 
-  summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>%
-  mutate(clicks_article = clicks.sum/articles.sum)
+  summarise(clicks_sum = sum(pageviews), 
+            read_sum = sum(read_time_total),
+            articles_sum = n()) %>%
+  mutate(clicks_article = clicks_sum/articles_sum,
+         read_article = read_sum/articles_sum)
 
 
-
-# Merge corona and not corona data
+# Merge other and corona data
 news_data_formatted <- merge(news_data_formatted1, news_data_formatted2, by=1, all.x = T)
-rm(news_data_formatted1, news_data_formatted2)
+rm(news_data_formatted1, news_data_formatted2, news_corona, news_other)
 
 news_data_formatted$date <- as.Date(news_data_formatted$date) # Make sure it is formated as a date
 
-# Make control variables
-news_data_formatted$month <- format(news_data_formatted$date,"%B")
-news_data_formatted$day <- format(news_data_formatted$date,"%A")
-
-# Make variable for gov announcments
-government_tv <- read_csv("Stock_data/government_tv.csv")[,-1] # Load data 
-
-news_data_formatted$gov <- ifelse(news_data_formatted$date %in% government_tv$date, 1, 0)
-
 # Drop some columns
-news_data_formatted <- 
-  news_data_formatted %>% 
-  select(-clicks.sum.x, -articles.sum.x, -clicks.sum.y, -articles.sum.y)
+news_data_formatted <- news_data_formatted %>% 
+  select(-clicks_sum.x, -articles_sum.x, -clicks_sum.y, -articles_sum.y, -read_sum.x, -read_sum.y)
 
 news_data_formatted$clicks_article.y[is.na(news_data_formatted$clicks_article.y)] <- 0
+news_data_formatted$read_article.y[is.na(news_data_formatted$read_article.y)] <- 0
+
 
 #change of column names
-colnames(news_data_formatted)[2:3] <- c("other_ca", "corona_ca")
+colnames(news_data_formatted)[2:5] <- c("other_ca", "other_ra", "corona_ca", "corona_ra")
 
+# Control variables
+news_data_formatted$month <- format(news_data_formatted$date, "%B")
+news_data_formatted$day <- format(news_data_formatted$date, "%A")
+news_data_formatted$week <- week(news_data_formatted$date)
 
 
 # Linear model and summary statistics
 
-summary(mod1 <- lm(log(1 +other_ca) ~ log(1 + corona_ca) + month + day, data=news_data_formatted))
+# Pageviews log normalized
+mod1 <- lm(log(1+ other_ca) ~ log(1+corona_ca), data = news_data_formatted)
 
-summary(lm(log(1 +corona_ca) ~ gov + month + day, data=news_data_formatted))
+# Pageviews lagged term
+mod1 <- lm(other_ca ~ corona_ca + lag(corona_ca), data = news_data_formatted)
+
+# Pageviews squared and cubed terms
+mod1 <- lm(other_ca ~ corona_ca + poly(corona_ca,2), data = news_data_formatted)
+
+# Control for month
+mod1 <- lm(other_ca ~ corona_ca, data = news_data_formatted)
+
+# Weekly average
+# Pageviews
+news_data_formatted %>% group_by(week) %>% summarize(m_other_ca = mean(other_ca),
+                                                     m_corona_ca = mean(corona_ca),
+                                                     month = month) %>%
+  lm(m_other_ca ~ m_corona_ca + poly(m_corona_ca, 2) + poly(m_corona_ca, 3) + poly(m_corona_ca, 4) + poly(m_corona_ca, 5) + month, data = .) -> mod1
+
+# Readtime
+news_data_formatted %>% group_by(week) %>% summarize(m_other_ra = mean(other_ra),
+                                                     m_corona_ra = mean(corona_ra),
+                                                     month = month) %>%
+  lm(m_other_ra ~ m_corona_ra + poly(m_corona_ra, 2) + poly(m_corona_ra, 3) + poly(m_corona_ra, 4) + poly(m_corona_ra, 5), data = .) -> mod1
+
+# Adjusted standard errors
+coeftest(mod1, df = Inf, vcov = vcovCL(mod1, cluster = ~ week, type = "HC1")) # Cluster standard errors per week
+
+coeftest(mod1, df = Inf, vcov = vcovHAC(mod1)) # vcovHAC adjusts for hetroskedasticity and autocorrelation
+summary(mod1)
+
+# Take closer look at autocorrelation 
+# - (add lagged terms)
+# - HAC robust standard errors
+# - Make data average per week instead
+# Find the appropriate "type"
 
 
-# There is autocorrelation
-dwtest(mod1)
+# Readtime per article
+mod1 <- lm(other_ra ~ corona_ra + month, data = news_data_formatted)
 
-# There is heteroskedasticity
-bptest(mod1)
+# Logaritmic readtime per article
+mod1 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month , data = news_data_formatted)
 
 
-# robust standard errors
-se_2 <- coeftest(mod1, vcov=vcovHC(mod1,type="HC0",cluster="group"))
+dwtest(mod1) # There is autocorrelation
+bptest(mod1) # There is heteroskedasticity
+
+
+# Adjusted standard errors
+coeftest(mod1, df = Inf, vcov = vcovCL(mod1, cluster = ~ month, type = "HC1")) # Cluster standard errors per week
+
+coeftest(mod1, df = Inf, vcov = vcovHAC(mod1)) # vcovHAC adjusts for hetroskedasticity and autocorrelation
 
 
 # tables showing:
@@ -434,27 +424,236 @@ summary(news_data_formatted)
 
 
 
+# Weekly data
+news_data_formatted <- merge(temp[temp$type == "corona",], temp[temp$type == "other",], by = "week") 
 
+news_data_formatted$month <- format(news_data_formatted$date.x,"%B")
 
-# Leftover code removed from stock_analysis3 ------------------------------
+news_data_formatted <- news_data_formatted %>% 
+  select(-c(pageviews.x, articles_sum.x, pageviews.y, sum_page.x, sum_page.y, articles_sum.y, date.x, date.y, year.x, year.y, type.x, type.y))
 
-# Variable for amount of corona news - Not done
-# news_corona <- read_csv("Stock_data/news_corona.csv")
-# 
-# news_data_formatted <- news_corona[,-1] %>% 
-#   select(date, pageviews) %>% 
-#   mutate(nr_articles = n_distinct(date)) %>% 
-#   group_by(date) %>% 
-#   summarise(clicks.sum = sum(pageviews), articles.sum = n()) %>% 
-#   mutate(clicks_article = clicks.sum/articles.sum)
-# 
-# news_data_formatted$news <- cut(news_data_formatted$clicks_article,
-#                                 quantile(news_data_formatted$clicks_article, c(0, .25, .50, .75, 1)),
-#                                 labels = c("very low", "low", "high", "very high"),
-#                                 include.lowest = TRUE)
-# 
-# # Create the variable in the main dataframe
-# stock_data$news_corona <- news_data_formatted$news[match(stock_data$date, as.Date(news_data_formatted$date))]
+colnames(news_data_formatted)[2:3] <- c("corona_ca", "other_ca")
+
+# Weekly
+summary(mod1 <- lm(log(1 + other_ca) ~ log(1 + corona_ca) + month + as.factor(week), data=news_data_formatted))
+
+summary(lm(log(1 + corona_ca) ~ month, data=news_data_formatted))
 
 
 
+# robust standard errors
+(se_2 <- coeftest(mod1, vcov=vcovHC(mod1, type="HC0")))
+
+
+
+
+
+
+
+
+
+# Plots & tables in the paper
+
+# Figure 1
+# Weekly data
+news_corona$week <- week(as.Date(news_corona$date, format = "%Y-%m-%d"))
+news_corona$year <- year(as.Date(news_corona$date, format = "%Y-%m-%d"))
+
+news_other$week <- week(as.Date(news_other$date, format = "%Y-%m-%d"))
+news_other$year <- year(as.Date(news_other$date, format = "%Y-%m-%d"))
+
+temp1 <- news_corona %>% 
+  select(date, year, week, pageviews) %>% 
+  group_by(year, week) %>% 
+  mutate(sum_page = sum(pageviews)/10^6, articles_sum = n()) %>% 
+  mutate(pr_article = sum_page/articles_sum) %>% 
+  mutate(Category = "Corona")
+
+temp2 <- news_other %>% 
+  select(date, year, week, pageviews) %>% 
+  group_by(year, week) %>% 
+  mutate(sum_page = sum(pageviews)/10^6, articles_sum = n()) %>% 
+  mutate(pr_article = sum_page/articles_sum) %>% 
+  mutate(Category = "Other")
+
+temp <- rbind(temp1, temp2) %>% group_by(week) %>% filter(!duplicated(pr_article))
+temp <- temp[!temp$week == 40,] # There is a wierd dip in articles this week -- consider removing
+temp <- temp[!temp$week == 53,] # There is a wierd dip in articles this week -- consider removing
+rm(temp1, temp2)
+
+temp %>% 
+  ggplot(., aes(x = as.Date(date), y = sum_page, color = Category, linetype = Category)) +
+  geom_line() +
+  labs(title = "Figure 1: Weekly Pageviews of Corona Articles and Other Articles by NRK (Million)",
+       subtitle = "October 2019 - September 2020",
+       x = "Date", y = "Million pageviews") +
+  scale_x_date(date_labels = "%d %b %Y", date_breaks = "1 month") +
+  scale_color_manual("Category", values = c("#1C237E", "orange")) +
+  scale_linetype_manual(values = c("longdash", "solid")) +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        axis.text.x = element_text(angle = 40, hjust = 1),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+# Scatterplot of Corona News and other
+news_data_formatted %>% 
+  ggplot(., aes(y = other_ca, x = corona_ca)) +
+  geom_point() +
+  labs(title = "Figure 2: Relationship between Pageviews for Other articles and Corona atricles",
+       x = "News Corona", y = "News Other") +
+  geom_smooth() +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+news_data_formatted %>% 
+  ggplot(., aes(y = other_ra, x = corona_ra)) +
+  geom_point() +
+  labs(title = "Figure 2: Relationship between Readtime for Other articles and Corona atricles",
+       x = "News Corona", y = "News Other") +
+  geom_smooth() +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+news_data_formatted %>% group_by(week) %>% 
+  summarize(m_other_ca = mean(other_ca),
+            m_corona_ca = mean(corona_ca),
+            month = month) %>% 
+  ggplot(., aes(y = m_other_ca, x = m_corona_ca)) +
+  geom_point() +
+  labs(title = "Figure 2: Relationship between Weekly Average Pageviews for Other articles and Corona atricles",
+       x = "News Corona", y = "News Other") +
+  geom_smooth() +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+news_data_formatted %>% group_by(week) %>% 
+  summarize(m_other_ra = mean(other_ra),
+            m_corona_ra = mean(corona_ra),
+            month = month) %>% 
+  ggplot(., aes(y = m_other_ra, x = m_corona_ra)) +
+  geom_point() +
+  labs(title = "Figure 2: Relationship between Weekly Average Readtime for Other articles and Corona atricles",
+       x = "News Corona", y = "News Other") +
+  geom_smooth() +
+  theme_bw() +
+  theme(text = element_text(family = "serif"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+
+
+
+
+
+library(stargazer)
+
+# Table 2a
+mod1 <- lm(other_ca ~ corona_ca, data = news_data_formatted)
+mod2 <- lm(other_ca ~ corona_ca + month, data = news_data_formatted)
+mod3 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) , data = news_data_formatted)
+mod4 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month , data = news_data_formatted)
+
+rob_se <- list(sqrt(diag(vcovHAC(mod1))),
+               sqrt(diag(vcovHAC(mod2))),
+               sqrt(diag(vcovHAC(mod3))),
+               sqrt(diag(vcovHAC(mod4))))
+
+t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
+               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
+               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
+               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))))
+
+p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
+               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
+               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
+               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4])
+
+stargazer(mod1, mod2, mod3, mod4, 
+          digits = 3,
+          header = FALSE,
+          type = "html", 
+          se = t_vals,
+          p = p_vals,
+          dep.var.labels=c("Clicks Other","Readtime Other"),
+          omit.stat=c("adj.rsq","f","ser"),
+          omit = "month",
+          add.lines = list(c("Month control", "", "X","","X")),
+          table.layout = "n=ldc-tas-",
+          covariate.labels=c("Clicks corona", "ln(Readtime)", "Intercept"),
+          title = "Table 2: <br> Linear Regression Models of corona-information affect on other",
+          model.numbers = FALSE,
+          column.labels = c("(1)", "(2)", "(3)", "(4)"),
+          notes.label = "", 
+          notes.align = "l",
+          notes.append = F,
+          notes = "Using readership data from NRK from the beginning of COVID-19 in February until the end of September, we regress the number of clicks and seconds spent reading COVID-19 articles on clicks and reading time of other articles.  Saturday and Sunday are excluded from the sample in order to capture the effect during trading hours. Regression (2) and (4) adjust for monthly fixed effects by using indicator variables for each month in the time period. Standard errors are adjusted for heteroskedasticity and autocorrelation and reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.")
+
+# Table 2b
+# Creating a nice table for output statistics:
+mod1 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ca = mean(other_ca),
+                                                             m_corona_ca = mean(corona_ca),
+                                                             month = month) %>%
+  lm(m_other_ca ~ poly(m_corona_ca, 2, raw = T), data = .)
+
+mod2 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ca = mean(other_ca),
+                                                             m_corona_ca = mean(corona_ca),
+                                                             month = month) %>%
+  lm(m_other_ca ~ poly(m_corona_ca, 2, raw = T) + month,  data = .)
+
+mod3 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ra = mean(other_ra),
+                                                             m_corona_ra = mean(corona_ra),
+                                                             month = month) %>%
+  lm(m_other_ra ~ poly(m_corona_ra, 2, raw = T), data = .)
+
+mod4 <- news_data_formatted %>% group_by(week) %>% summarize(m_other_ra = mean(other_ra),
+                                                             m_corona_ra = mean(corona_ra),
+                                                             month = month) %>%
+  lm(m_other_ra ~ poly(m_corona_ra, 2, raw = T) + month, data = .)
+
+
+rob_se <- list(sqrt(diag(vcovHAC(mod1))),
+               sqrt(diag(vcovHAC(mod2))),
+               sqrt(diag(vcovHAC(mod3))),
+               sqrt(diag(vcovHAC(mod4))))
+
+t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
+               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
+               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
+               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))))
+
+p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
+               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
+               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
+               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4])
+
+stargazer(mod1, mod2, mod3, mod4, 
+          digits = 3,
+          header = FALSE,
+          type = "html", 
+          se = t_vals,
+          p = p_vals,
+          dep.var.labels=c("Clicks Other","Readtime Other"),
+          omit.stat=c("adj.rsq","f","ser"),
+          omit = "month",
+          add.lines = list(c("Month control", "", "X","","X")),
+          table.layout = "n-=ldc-tas-",
+          covariate.labels=c("Clicks Corona", "Clicks Corona squared", "Readtime Corona", "Readtime Corona squared", "Intercept"),
+          title = "Table 2: <br> Weekly Average Corona Readership Statistics Affect on Other",
+          notes = "In Table 2 we run regressions on both the clicks per article and readtime averaged by week for articles not about corona on clicks or readtime for articles about corona. To control for time-varying effects indicator variables for each month are included. Since we are most interested in how attention is affected in trading days, Saturday and Sunday is excluded. ClicksO and ClicksC is the number of daily pageviews for other and Corona articles respectively.",
+          notes.append = FALSE,
+          notes.label = "",
+          notes.align = "l",
+          model.numbers = FALSE,
+          column.labels = c("(1)", "(2)", "(3)", "(4)"))
+        
+        
+        
+        
