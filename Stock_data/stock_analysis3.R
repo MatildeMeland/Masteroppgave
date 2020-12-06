@@ -666,12 +666,12 @@ plot1A <- summary(as.factor(month(earning_data$date,label = T, abbr = T))) %>% a
   rename(earnings = ".")
 plot1A$month <- factor(row.names(plot1A),levels = c("jan","feb","mar","apr","mai","jun","jul","aug","sep","okt","nov", "des"))
 
-plot1A %>%  
+plot1 <-plot1A %>%  
   ggplot(.,aes(x = month, y = earnings)) +
   geom_bar(stat = "identity",fill = "#2549b9") +
   #scale_fill_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
-  labs(title = "Figure 1A: Earnings announcement in each month",
-       x = "Month", y = "Number of announcements") +
+  labs(title = "Announcements per Month",
+       x = "Month", y = "Number of Announcements") +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         #legend.position="top",
@@ -679,7 +679,6 @@ plot1A %>%
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
 
-rm(plot1A)
 # Days of week
 stargazer(summary(as.factor(wday(stock_data$date,label = T, abbr = F))), #Create variable for month
           type = "html",
@@ -690,12 +689,12 @@ plot1B <-summary(as.factor(wday(stock_data$date,label = T, abbr = F))) %>% as.da
   rename(earnings = ".")
 plot1B$month <- factor(row.names(plot1B), levels = c("mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"))
 
-plot1B %>%  
+plot2 <- plot1B %>%  
   ggplot(.,aes(x = month, y = earnings)) +
   geom_bar(stat = "identity",fill = "#2549b9") +
   #scale_fill_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
-  labs(title = "Figure 1B: Earnings Announcements per day",
-       x = "Day of week", y = "Number of announcements") +
+  labs(title = "Announcements per Day",
+       x = "Day of Week", y = "Number of Announcements") +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         #legend.position="top",
@@ -703,7 +702,10 @@ plot1B %>%
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
 
-rm(plot1B)
+library(gridExtra)
+grid.arrange(plot1, plot2, ncol=2)
+
+rm(plot1B, plot1A)
 
 # Table 1b.1:
 #   Mean, median, . see Ungehauer
@@ -718,7 +720,13 @@ stargazer(df, type = "html",
           covariate.labels=c("Pageviews Corona-News (1000)","Earnings Surprise",
                              "CAR[0,2]","CAR[3,40]","AV[0,1]","AVOLA[0,1]",
                              "Market cap (BNOK)", "Nr. of Analysts", "Inst. Ownership (%)",
-                             "Book-to-Market (%)","Share Turnover (%)"),
+                             "Book-to-Market (%)","Share Turnover"),
+          notes.append = FALSE,
+          notes.label = "",
+          notes.align = "l",
+          #table.layout = "n-=ldc-tas-",
+          table.layout = "n-=d",
+          notes = "JAAAA",
           median = T)
 
 # Did not find an easy way to edit the number of observations in the summary table.
