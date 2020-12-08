@@ -89,6 +89,15 @@ stock_data <- merge(stock_data, temp4, by = c("Security", "year", "month"), all.
   arrange(.,Security, date)
 rm(acc_vars, temp4)
 
+test <- stock_data %>% 
+  ungroup %>%
+  arrange(., Security) %>% 
+  group_by(Security) %>% 
+  mutate(AV20_m = c(as.numeric(rollapply(log(lead(val, 2) + 1), 50, mean, partial = FALSE, align = "right")), rep(NA, times = 49)), # Average of AV day 2 to 21
+         AV20 = AV20_m - log((mean(val[month(date) == 1], na.rm = T)) + 1))
+
+
+
 # Cumulative abnormal volume and return ----------------------------------------------
 stock_data <- stock_data %>% 
   group_by(industry, date) %>%
@@ -106,6 +115,10 @@ stock_data <- stock_data %>%
   group_by(Security) %>% 
   mutate(AV_DV30 = (log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 30, fill = NA)/30)),   # Abnormal volume for each company
          AV_DV20 = (log(val+1) - (rollsumr(log(lag(val+1, n = 11)), k = 20, fill = NA)/20)),   # Abnormal volume for each company
+         AV20_m = c(as.numeric(rollapply(log(lead(val, 2) + 1), 50, mean, partial = FALSE, align = "right")), rep(NA, times = 49)), # Average of AV day 2 to 21
+         
+         AV20 = AV20_m - log((mean(val[month(date) == 1], na.rm = T)) + 1), # Normalized Volume day 2 to 21
+         AV1_DV = log(val + 1) - log(val[date == "2020-01-31"] + 1),
          
          RN = Winsorize((log(PX_LAST/lag(PX_LAST))), minval = NULL, maxval = NULL, probs = c(0.05, 0.95), na.rm = T, type = 7),
          
@@ -146,6 +159,7 @@ stock_data <- stock_data %>%
   group_by(industry,date) %>%
   mutate(AV_industy30 = ((sum(AV_DV30, na.rm = T, fill = NA)-AV_DV30)/(n()-ifelse(n() == sum(is.na(AV_DV30)),1,0)-sum(is.na(AV_DV30)))), # Mean abnormal volume for industry
          AV_industy20 = ((sum(AV_DV20, na.rm = T, fill = NA)-AV_DV20)/(n()-ifelse(n() == sum(is.na(AV_DV20)),1,0)-sum(is.na(AV_DV20)))),  # Mean abnormal volume for industry 
+         AV20_industy = ((sum(AV20, na.rm = T, fill = NA) - AV20)/(n() - ifelse(n() == sum(is.na(AV20)), 1, 0) - sum(is.na(AV20)))),  # Average Normalized Volume in each industry day 2 to 21
          
          AVol_industy = ((sum(volA, na.rm = T, fill = NA)-volA)/(n()-ifelse(n() == sum(is.na(volA)),1,0)-sum(is.na(volA)))),
          AVol_industy1 = ((sum(vol1A, na.rm = T, fill = NA)-vol1A)/(n()-ifelse(n() == sum(is.na(vol1A)),1,0)-sum(is.na(vol1A)))),
@@ -157,6 +171,8 @@ stock_data <- stock_data %>%
          AV_alt30lag = (AV_alt30 + lead(AV_alt30))/2,           # Avolume for regression
          AV_alt20 = AV_DV20 - AV_industy20, 
          AV_alt20lag = (AV_alt20 + lead(AV_alt20))/2,
+         AV1_alt = AV1_DV - AV_industy20,
+         AV20_reg = AV20 - AV20_industy,
          
          AVol_alt = volA - AVol_industy,
          AVol_alt1 = vol1A - AVol_industy1,
@@ -165,7 +181,7 @@ stock_data <- stock_data %>%
          AVol_reg1 = (AVol_alt1 + lead(AVol_alt1))/2,           # Avolatility for regression
          AVol_reg2 = (AVol_alt2 + lead(AVol_alt2))/2,
          AVol_reg3 = (AVol_alt3 + lead(AVol_alt3))/2) %>% 
-  select(-c(T_MC, val, total_val, AV_industy30,AV_industy20 ,vol1A,vol2A,vol3A,AVol_industy1,AVol_industy2,AVol_industy3, capH,capL,capO,capC))
+  select(-c(T_MC, val, total_val, AV_industy30,AV_industy20, vol1A, vol2A, vol3A, AVol_industy1, AVol_industy2, AVol_industy3, capH, capL, capO, capC))
 
 #library(moments)
 #skewness(stock_data$abn_volatility1, na.rm = T) # abn_volatility1 is super skewed, as it should be
@@ -272,12 +288,12 @@ rm(EPS)
 
 #_VOLATILITY / ABNORMAL VOLUME - PLOT _______________________________________________________________________________________
 
-plot_data <- stock_data %>% select(c(Security, date, AV_alt30, AV_alt30lag, AV_alt20, AV_alt20lag, AVol_alt, AVol_alt1, AVol_alt2, AVol_alt3, news_month, news_month3, news_month4, daily_return, MR)) %>% 
+plot_data <- stock_data %>% select(c(Security, date, AV_alt30, AV_alt30lag, AV_alt20, AV_alt20lag, AV1_alt, AVol_alt, AVol_alt1, AVol_alt2, AVol_alt3, news_month, news_month3, news_month4, daily_return, MR)) %>% 
   drop_na()
 
 plot_data$Security <- gsub(" .*$", "", plot_data$Security, ignore.case = T)
 
-plot_data$news_q <- plot_data$news_month
+plot_data$news_q <- plot_data$news_month4
 
 plot_data <- left_join(plot_data, earning_data) %>% select(-c("Name")) %>% ungroup() %>% 
   mutate(time = NA)
@@ -290,7 +306,7 @@ plot_data$ES_q[!is.na(plot_data$ES_4d)] <- cut(plot_data$ES_4d[!is.na(plot_data$
 
 for (i in 1:nrow(plot_data)) {
   if (is.na(plot_data$quarter[i]) == F) {
-    for (j in -2:6) {
+    for (j in 40:90) {
       plot_data$time[i + j] <- j
       plot_data$news_q[i + j] <- plot_data$news_q[i]
       plot_data$ES_q[i + j] <- plot_data$ES_q[i]
@@ -303,7 +319,7 @@ rm(i, j)
 plot_data <- plot_data %>% drop_na(time)
 
 # Plot of abnormal volume from -2 to +10 surrounding earnings announcement
-plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N4")) %>% summarize(m_AV = mean(AV_alt20)) %>% 
+plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N4")) %>% summarize(m_AV = mean(AV1_alt)) %>%  
   ggplot(.,aes(fill = news_q, x = time, y = m_AV, linetype = news_q,)) +
   geom_line(aes(colour = news_q)) +
   scale_color_manual("News Q", values = c("N1" = "#4EBCD5", "N4" = "#1C237E")) +
@@ -469,7 +485,7 @@ earnings_calc <- function(EPSactual, EPSestimated, variable, news) {
   
   # plot
   stock_data %>% select(news_q, ES_quantile, plot) %>%
-    filter(news_q == "N1" | news_q == "N5") %>%
+    filter(news_q == "N1" | news_q == "N4") %>%
     group_by(news_q, ES_quantile) %>%
     summarise(mean = mean(plot, na.rm = T)) %>% ungroup() %>%
     na.omit(ES) %>% 
@@ -496,12 +512,12 @@ stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 # Lack of observations
 
 # Foster model 1
-earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$CAR1, stock_data$news_q5)
+earnings_calc(stock_data$eps, stock_data$ES_4, stock_data$CAR1, stock_data$news_month)
 stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 # Simpler model than next one
 
 # Foster model 2
-earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1, stock_data$news_month)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1, stock_data$news_month4)
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR2, stock_data$news_month)
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40, stock_data$news_month)
 
@@ -573,12 +589,12 @@ stock_data$ES_quantile2 <- cut(stock_data$ES_abs,
                                labels = c("Q1","Q2","Q3","Q4","Q5"),
                                include.lowest = TRUE)
 stock_data$ES_quantile2 <- as.numeric(stock_data$ES_quantile2)
-stock_data$news_q <- stock_data$news_month
+stock_data$news_q <- stock_data$news_month4
 
 stock_data  %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
+  filter(news_q == "N1" | news_q == "N4") %>%
   group_by(news_q,ES_quantile2) %>%
-  summarise(mean = mean(AV_alt20lag, na.rm = T)) %>% ungroup() %>%
+  summarise(mean = mean(AV_DValt1, na.rm = T)) %>% ungroup() %>%
   na.omit(ES) %>% 
   ggplot(., aes(x = ES_quantile2, y = mean, group = news_q)) +
   geom_line(aes(colour = news_q)) + 
@@ -591,7 +607,7 @@ stock_data  %>%
 
 # AV20 = news + ES_quantile2
 mod1 <- stock_data %>%
-  lm(AV_alt20lag ~ news + ES_quantile2, data = .)
+  lm(AV20_reg ~ news, data = .)
 coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))
 
 # AV20 = news + ES_quantile2 + controls
@@ -726,47 +742,51 @@ stargazer(df, type = "html",
 # width="800"
 
 # Table 1b.2 - Difference between top news and bottom news __________________________________________________
-stock_data$news_q <- stock_data$news_month
+stock_data$news_q <- stock_data$news_month4
 
 # T-test
 # X needs to be values of N1 and Y needs to be values of N5
 df <- stock_data %>%
-  select(news_q, ES, ES_quantile,CUR_MKT_CAP, BtoM, mean_analyst, mean_IO_share, share_turnover30) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
+  select(news_q, news, ES, CAR2, CAR40, AV_alt20lag, AVol_alt, CUR_MKT_CAP, BtoM, mean_analyst, mean_IO_share, share_turnover30) %>%
+  filter(news_q == "N1" | news_q == "N4") %>%
   group_by(news_q) %>%
-  summarize(ES = mean(ES, na.rm = T),
+  summarize(cnews = mean(news, na.rm = T)/1000,
+            ES = mean(ES, na.rm = T),
+            CAR1 = mean(CAR2, na.rm = T),
+            CAR40 = mean(CAR40, na.rm = T),
+            AV = mean(AV_alt20lag, na.rm = T),
+            AVol = mean(AVol_alt, na.rm = T),
             mkt_cap = mean(CUR_MKT_CAP, na.rm = T)/1000,
             B_M = mean(BtoM, na.rm = T),
             analyst = mean(mean_analyst, na.rm = T),
             IO_share = mean(mean_IO_share, na.rm = T),
             share_turnover = mean(share_turnover30, na.rm = T)) %>%
-  t() %>% as.data.frame() %>% rename(N1 = V1, N5 = V2) %>%
+  t() %>% as.data.frame() %>% rename(N1 = V1, N4 = V2) %>%
   subset(N1 != "N1") %>% rownames_to_column() %>%
-  mutate_at(c("N1","N5"), as.numeric) %>%
-  mutate(diff = N5-N1)
+  mutate_at(c("N1","N4"), as.numeric) %>%
+  mutate(diff = N4-N1)
 
 df2 <- stock_data %>% 
-  select(news_q, ES, CUR_MKT_CAP, BtoM, mean_analyst, mean_IO_share, share_turnover30) %>% 
-  filter(news_q == "N1" | news_q == "N5")
+  select(news_q, news, ES, CAR2, CAR40, AV_alt20lag, AVol_alt, CUR_MKT_CAP, BtoM, mean_analyst, mean_IO_share, share_turnover30) %>% 
+  filter(news_q == "N1" | news_q == "N4")
 
 
 # loop calculating p-values and standard errors
 for (i in 2:(ncol(df2)-1)) {
-  test <- t.test(df2[df2$news_q == "N1", i], df2[df2$news_q == "N5", i])
+  test <- t.test(df2[df2$news_q == "N1", i], df2[df2$news_q == "N4", i])
   df$p[i-1] <- test$p.value
-  df$stderr[i-1] <- test$stderr
+  df$stderr[i-1] <- test$statistic
 }
 
-df$rowname <- c("Earnings Surprise", "Market Capatization", "Book to Market", "Number of Analysts", "IO Share", "Share Turnover")
+
+df$rowname <- c("Corona- Pageviews (1000)", "Earnings Surprise", "CAR[0,2]", "CAR[3,42]", "AV[0,1]", "AVOLA[0,1]", "Market Cap (BNOK)", "Book-to-Market (%)", "Nr. of Analysts", "Inst. Ownership (%)", "Share Turnover")
 stargazer(df, 
           digits = 3,
           header = F,
           type = "html",
           summary = F,
-          se = list(df$stderr), # this does nothing
-          p = list(df$p), # this does nothing
-          covariate.labels=c("", "",  "Cov Bottom", "Cov Top", "Differnce", "p-value", "Standard Error"),
-          title = "Differnce between announcments on Cov-top days and Cov-bottom days")
+          covariate.labels=c("", "",  "N1", "N4", "Difference", "p-value", "t-value"),
+          title = "Summary News and Company Data (2)")
 
 rm(df,df2,test,i)
 

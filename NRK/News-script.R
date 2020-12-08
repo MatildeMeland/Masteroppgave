@@ -34,6 +34,9 @@ news_corona <- news_data[grep("Covid-19|korona", news_data$subject, ignore.case 
 #news_data <- news_data[!grepl("?konomi|n?ringsliv", news_data$subject, ignore.case = T), ]
 
 sum(news_corona$pageviews) # Total veiws on Corona articles (VG.no had 515M while Dagbladet.no had 220M)
+x <- news_corona %>% filter(date < "2020-09-07")
+sum(x$pageviews)
+
 
 news_other <- news_data[!grepl("Covid-19|korona", news_data$subject, ignore.case = T), ] %>% # Other atricles
   mutate(type = "other")
@@ -453,6 +456,7 @@ summary(lm(log(1 + corona_ca) ~ month, data=news_data_formatted))
 
 
 # Plots & tables in the paper
+library("ggpubr")
 
 # Figure 1
 # Weekly data
@@ -484,9 +488,9 @@ rm(temp1, temp2)
 temp %>% 
   ggplot(., aes(x = as.Date(date), y = sum_page, color = Category, linetype = Category)) +
   geom_line() +
-  labs(title = "Figure 1: Weekly Pageviews of Corona Articles and Other Articles by NRK (Million)",
+  labs(title = "Weekly Pageviews of Corona and Other Articles by NRK",
        subtitle = "October 2019 - September 2020",
-       x = "Date", y = "Million pageviews") +
+       x = "Date", y = "Pageviews (million)") +
   scale_x_date(date_labels = "%d %b %Y", date_breaks = "1 month") +
   scale_color_manual("Category", values = c("#1C237E", "orange")) +
   scale_linetype_manual(values = c("longdash", "solid")) +
@@ -497,13 +501,16 @@ temp %>%
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
 
-# Scatterplot of Corona News and other
+ggarrange(plot1, plot2, ncol = 2, nrow = 1)
+
+
+# Scatterplot of Corona News and Other
 news_data_formatted %>% 
   ggplot(., aes(y = other_ca, x = corona_ca)) +
   geom_point() +
   labs(title = "Figure 2: Relationship between Pageviews for Other articles and Corona atricles",
        x = "News Corona", y = "News Other") +
-  geom_smooth() +
+  geom_smooth(method='lm', formula = y ~ poly(x,2)) +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.major.x = element_blank(),
@@ -520,35 +527,37 @@ news_data_formatted %>%
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
 
-news_data_formatted %>% group_by(week) %>% 
+plot1 <- news_data_formatted %>% group_by(week) %>% 
   summarize(m_other_ca = mean(other_ca),
             m_corona_ca = mean(corona_ca),
             month = month) %>% 
-  ggplot(., aes(y = m_other_ca, x = m_corona_ca)) +
+  ggplot(., aes(y = m_other_ca/1000, x = m_corona_ca/1000)) +
   geom_point() +
-  labs(title = "Figure 2: Relationship between Weekly Average Pageviews for Other articles and Corona atricles",
-       x = "News Corona", y = "News Other") +
-  geom_smooth() +
+  labs(title = "Weekly Average Pageviews",
+       x = "Pageviews Corona (thousands)", y = "Pageviews Other (thousands)") +
+  #geom_smooth(method='lm', formula = y ~ x) + # Linear
+  geom_smooth(method='lm', formula = y ~ poly(x,2)) + # Polynomial
   theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
 
-news_data_formatted %>% group_by(week) %>% 
+plot2 <- news_data_formatted %>% group_by(week) %>% 
   summarize(m_other_ra = mean(other_ra),
             m_corona_ra = mean(corona_ra),
             month = month) %>% 
-  ggplot(., aes(y = m_other_ra, x = m_corona_ra)) +
+  ggplot(., aes(y = log(m_other_ra/360), x = log(m_corona_ra/360))) +
   geom_point() +
-  labs(title = "Figure 2: Relationship between Weekly Average Readtime for Other articles and Corona atricles",
-       x = "News Corona", y = "News Other") +
-  geom_smooth() +
+  labs(title = "Weekly Average Readtime",
+       x = "Readtime Corona (hours)", y = "Readtime Other (hours)") +
+  #geom_smooth(method='lm', formula = y ~ x) + # Linear
+  geom_smooth(method='lm', formula = y ~ poly(x,2)) + # Polynomial
   theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
 
-
+ggarrange(plot1, plot2, ncol = 2, nrow = 1)
 
 
 
@@ -556,27 +565,42 @@ news_data_formatted %>% group_by(week) %>%
 library(stargazer)
 
 # Table 2a
+news_data_formatted$month <- factor(news_data_formatted$month,
+                                    levels = c("February", "March", "April", "May", "June", "July", "August", "September"))
+
+news_data_formatted$day <- factor(news_data_formatted$day,
+                                  levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
+
 mod1 <- lm(other_ca ~ corona_ca, data = news_data_formatted)
 mod2 <- lm(other_ca ~ corona_ca + month, data = news_data_formatted)
-mod3 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) , data = news_data_formatted)
-mod4 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month , data = news_data_formatted)
+mod3 <- lm(other_ca ~ corona_ca + month + day, data = news_data_formatted)
+mod4 <- lm(log(1 + other_ra) ~ log(1 + corona_ra), data = news_data_formatted)
+mod5 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month, data = news_data_formatted)
+mod6 <- lm(log(1 + other_ra) ~ log(1 + corona_ra) + month + day , data = news_data_formatted)
 
 rob_se <- list(sqrt(diag(vcovHAC(mod1))),
                sqrt(diag(vcovHAC(mod2))),
                sqrt(diag(vcovHAC(mod3))),
-               sqrt(diag(vcovHAC(mod4))))
+               sqrt(diag(vcovHAC(mod4))),
+               sqrt(diag(vcovHAC(mod5))),
+               sqrt(diag(vcovHAC(mod6))))
 
 t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
                coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
                coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
-               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))))
+               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))),
+               coef(mod5)/sqrt(diag(vcovHC(mod5, type = "HC1"))),
+               coef(mod6)/sqrt(diag(vcovHC(mod6, type = "HC1"))))
 
 p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
                coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
                coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
-               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4])
+               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4],
+               coeftest(mod5, df = Inf, vcov = vcovHC(mod5, type = "HC1"))[,4],
+               coeftest(mod6, df = Inf, vcov = vcovHC(mod6, type = "HC1"))[,4])
 
-stargazer(mod1, mod2, mod3, mod4, 
+#vars.order <- c("corona_ca", "corona_ra", "month", "day")
+stargazer(mod1, mod2, mod3, mod4, mod5, mod6,
           digits = 3,
           header = FALSE,
           type = "html", 
@@ -584,13 +608,13 @@ stargazer(mod1, mod2, mod3, mod4,
           p = p_vals,
           dep.var.labels=c("Clicks Other","Readtime Other"),
           omit.stat=c("adj.rsq","f","ser"),
-          omit = "month",
-          add.lines = list(c("Month control", "", "X","","X")),
+          omit = "Constant",
           table.layout = "n=ldc-tas-",
-          covariate.labels=c("Clicks corona", "ln(Readtime)", "Intercept"),
+          covariate.labels=c("Clicks corona", "March", "April", "May", "June", "July", "August", "September", "Tuesday", "Wednesday", "Thursday", "Friday","ln(Readtime)"),
           title = "Table 2: <br> Linear Regression Models of corona-information affect on other",
           model.numbers = FALSE,
-          column.labels = c("(1)", "(2)", "(3)", "(4)"),
+          #order = paste0("^", vars.order , "$"),
+          column.labels = c("(1)", "(2)", "(3)", "(4)", "(5)", "(6)"),
           notes.label = "", 
           notes.align = "l",
           notes.append = F,
