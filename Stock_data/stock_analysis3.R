@@ -89,14 +89,6 @@ stock_data <- merge(stock_data, temp4, by = c("Security", "year", "month"), all.
   arrange(.,Security, date)
 rm(acc_vars, temp4)
 
-test <- stock_data %>% 
-  ungroup %>%
-  arrange(., Security) %>% 
-  group_by(Security) %>% 
-  mutate(AV20_m = c(as.numeric(rollapply(log(lead(val, 2) + 1), 50, mean, partial = FALSE, align = "right")), rep(NA, times = 49)), # Average of AV day 2 to 21
-         AV20 = AV20_m - log((mean(val[month(date) == 1], na.rm = T)) + 1))
-
-
 
 # Cumulative abnormal volume and return ----------------------------------------------
 stock_data <- stock_data %>% 
