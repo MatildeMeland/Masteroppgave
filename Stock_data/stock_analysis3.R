@@ -140,7 +140,7 @@ stock_data <- stock_data %>%
          MR = c(NA,diff(T_MC))/lag(T_MC, 1),                                               # Market return, diff takes the difference between last observation and current
          
          #daily_return = log(PX_LAST/PX_OPEN),                                              # Daily return, might change to log returns instead
-         daily_return = Winsorize((log(PX_LAST/PX_OPEN)), minval = NULL, maxval = NULL, probs = c(0.05, 0.95),
+         daily_return = Winsorize((log(PX_LAST/lag(PX_LAST))), minval = NULL, maxval = NULL, probs = c(0.05, 0.95),
                                   na.rm = T, type = 7),
          
          CAR1 = c(as.numeric(rollapply(1 + daily_return, 2, prod, partial = FALSE, align = "right")), rep(NA, times = 1)) # Cumulative abnormal return (CAR) for each company in each industry first 2 days
@@ -280,19 +280,6 @@ EPS <- EPS %>% group_by(Security) %>%
 # Combine earnings data with EPS data
 earning_data <- merge(earning_data, EPS[,-2] , by = c("Security", "quarter"))
 
-# Remove observations with too little avalible data
-# Just got listed
-earning_data <- earning_data[!(earning_data$Security == "PEXIP" & earning_data$date == "2020-05-27"),]
-earning_data <- earning_data[!(earning_data$Security == "NOL" & earning_data$date == "2020-02-28"),]
-
-# No info of inst. ownership
-earning_data <- earning_data[!(earning_data$Security == "EPICME" & earning_data$date == "2020-04-16"),]
-earning_data <- earning_data[!(earning_data$Security == "EPICME" & earning_data$date == "2020-08-13"),]
-earning_data <- earning_data[!(earning_data$Security == "RIVERME" & earning_data$date == "2020-04-30"),]
-earning_data <- earning_data[!(earning_data$Security == "RIVERME" & earning_data$date == "2020-08-31"),]
-
-# Remove SOFF as this company had extreme values
-earning_data <- earning_data %>% filter(Security != "SOFF")
 
 rm(EPS)
 
@@ -404,6 +391,22 @@ plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N4")) %>%
 
 
 #________________________________________________________________________________________________________
+
+# Remove observations with too little avalible data
+# Just got listed
+earning_data <- earning_data[!(earning_data$Security == "PEXIP" & earning_data$date == "2020-05-27"),]
+earning_data <- earning_data[!(earning_data$Security == "NOL" & earning_data$date == "2020-02-28"),]
+
+# No info of inst. ownership
+earning_data <- earning_data[!(earning_data$Security == "EPICME" & earning_data$date == "2020-04-16"),]
+earning_data <- earning_data[!(earning_data$Security == "EPICME" & earning_data$date == "2020-08-13"),]
+earning_data <- earning_data[!(earning_data$Security == "RIVERME" & earning_data$date == "2020-04-30"),]
+earning_data <- earning_data[!(earning_data$Security == "RIVERME" & earning_data$date == "2020-08-31"),]
+
+# Remove SOFF as this company had extreme values
+earning_data <- earning_data %>% filter(Security != "SOFF")
+
+
 
 # Create dataframe for accounting variables:
 # remove some unneccesary variables as well as PX_TO_BOOK as Book to market had more obs.
@@ -1067,11 +1070,11 @@ stock_data$news_q <- stock_data$news_month4
 stock_data %>% 
   group_by(ES_quantile) %>% 
   mutate(ES_names = round(mean(ES), 3)) %>% ungroup() %>% 
-  select(news_q, ES_quantile, CAR2, ES_names, ES) %>%
+  select(news_q, ES_quantile, CAR1, ES_names, ES) %>%
   filter(news_q == "N1" | news_q == "N4") %>%
   mutate(names = ifelse(news_q == "N1", "Corona Bottom", "Corona Top")) %>% 
   group_by(names, ES_quantile) %>%
-  summarise(mean = mean(CAR2, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
+  summarise(mean = mean(CAR1, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
   na.omit(ES) %>% 
   
   ggplot(., aes(x = as.factor(ES_names), y = mean*100, group = names, linetype = names, colour = names, shape = names)) +
@@ -1080,8 +1083,8 @@ stock_data %>%
   scale_color_manual(name = "News", values = c("#4EBCD5", "#1C237E")) +
   scale_linetype_manual(name = "News", values = c("solid", "longdash")) +
   scale_shape_manual(name = "News", values = c(15, 17)) +
-  labs(title = "Average CAR[0,2] for Each Earnings Surprise Quantile",
-       x = "Average Earnings Surprise in each Quantile", y = "CAR[0,2] (%)") +
+  labs(title = "Average CAR[0,1] for Each Earnings Surprise Quintiles",
+       x = "Average Earnings Surprise in each Quintiles", y = "CAR[0,1] (%)") +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.minor.y = element_blank(),
