@@ -89,6 +89,14 @@ stock_data <- merge(stock_data, temp4, by = c("Security", "year", "month"), all.
   arrange(.,Security, date)
 rm(acc_vars, temp4)
 
+stock_data$mean_share[is.na(stock_data$mean_share)] <- round(stock_data$CUR_MKT_CAP[is.na(stock_data$mean_share)] / stock_data$PX_LAST[is.na(stock_data$mean_share)], 3)
+
+for (i in unique(stock_data$Security)) { # Fill in missing values
+  stock_data$mean_share[stock_data$Security == i] <- na.locf(stock_data$mean_share[stock_data$Security == i], na.rm = FALSE)}
+
+stock_data$CUR_MKT_CAP[is.na(stock_data$CUR_MKT_CAP)] <- round(stock_data$PX_LAST[is.na(stock_data$CUR_MKT_CAP)] * stock_data$mean_share[is.na(stock_data$CUR_MKT_CAP)], 3)
+
+
 
 # Cumulative abnormal volume and return ----------------------------------------------
 stock_data <- stock_data %>% 
@@ -114,19 +122,16 @@ stock_data <- stock_data %>%
          
          RN = Winsorize((log(PX_LAST/lag(PX_LAST))), minval = NULL, maxval = NULL, probs = c(0.05, 0.95), na.rm = T, type = 7),
          
-         #vol = RN^2, # Winsorized 
-         vol = log(PX_LAST/lag(PX_LAST))^2, # Not winsorized 
-         vol1 = log(PX_LAST/PX_OPEN)^2,
+         #vol1 = RN^2, # Winsorized 
+         vol1 = log(PX_LAST/lag(PX_LAST))^2, # Not winsorized 
          vol2 = ((log(PX_HIGH)-log(PX_LOW))^2)/(4*log(2)),
          vol3 = 0.5*log(PX_HIGH/PX_LOW)^2 - (2*log(2)-1)*log(PX_LAST/PX_OPEN)^2,
          
-         volA = vol - (rollsumr((lag(vol, n = 11)), k = 20, fill = NA)/20),
          vol1A = vol1 - (rollsumr((lag(vol1, n = 11)), k = 20, fill = NA)/20),
          vol2A = vol2 - (rollsumr((lag(vol2, n = 11)), k = 20, fill = NA)/20),
          vol3A = vol3 - (rollsumr((lag(vol3, n = 11)), k = 20, fill = NA)/20),
          
-         volMR = vol - log(capC/lag(capC))^2,
-         vol1MR = vol1 - log(capC/capO)^2,
+         vol1MR = vol1 - log(capC/lag(capC))^2,
          vol2MR = vol2 - ((log(capH)-log(capL))^2)/(4*log(2)),
          vol3MR = vol3 - 0.5*log(capH/capL)^2 - (2*log(2)-1)*log(capC/capO)^2,
          
@@ -153,7 +158,6 @@ stock_data <- stock_data %>%
          AV_industy20 = ((sum(AV_DV20, na.rm = T, fill = NA)-AV_DV20)/(n()-ifelse(n() == sum(is.na(AV_DV20)),1,0)-sum(is.na(AV_DV20)))),  # Mean abnormal volume for industry 
          AV20_industy = ((sum(AV20, na.rm = T, fill = NA) - AV20)/(n() - ifelse(n() == sum(is.na(AV20)), 1, 0) - sum(is.na(AV20)))),  # Average Normalized Volume in each industry day 2 to 21
          
-         AVol_industy = ((sum(volA, na.rm = T, fill = NA)-volA)/(n()-ifelse(n() == sum(is.na(volA)),1,0)-sum(is.na(volA)))),
          AVol_industy1 = ((sum(vol1A, na.rm = T, fill = NA)-vol1A)/(n()-ifelse(n() == sum(is.na(vol1A)),1,0)-sum(is.na(vol1A)))),
          AVol_industy2 = ((sum(vol2A, na.rm = T, fill = NA)-vol2A)/(n()-ifelse(n() == sum(is.na(vol2A)),1,0)-sum(is.na(vol2A)))),
          AVol_industy3 = ((sum(vol3A, na.rm = T, fill = NA)-vol3A)/(n()-ifelse(n() == sum(is.na(vol3A)),1,0)-sum(is.na(vol3A))))) %>%
@@ -166,7 +170,6 @@ stock_data <- stock_data %>%
          AV1_alt = AV1_DV - AV_industy20,
          AV20_reg = AV20 - AV20_industy,
          
-         AVol_alt = volA - AVol_industy,
          AVol_alt1 = vol1A - AVol_industy1,
          AVol_alt2 = vol2A - AVol_industy2,
          AVol_alt3 = vol3A - AVol_industy3,
@@ -214,6 +217,7 @@ stock_data$lognews[is.na(stock_data$lognews)] <- 0
 
 stock_data <- stock_data[year(stock_data$date) == 2020,] # Remove days before 2020
 stock_data <- stock_data[!month(stock_data$date) == 1,] # Remove days in january
+stock_data <- stock_data[!is.na(stock_data$PX_LAST),] # Remove all observations with no stock price (some companies release reports before they are public)
 
 
 
@@ -276,11 +280,28 @@ EPS <- EPS %>% group_by(Security) %>%
 # Combine earnings data with EPS data
 earning_data <- merge(earning_data, EPS[,-2] , by = c("Security", "quarter"))
 
+# Remove observations with too little avalible data
+# Just got listed
+earning_data <- earning_data[!(earning_data$Security == "PEXIP" & earning_data$date == "2020-05-27"),]
+earning_data <- earning_data[!(earning_data$Security == "NOL" & earning_data$date == "2020-02-28"),]
+
+# No info of inst. ownership
+earning_data <- earning_data[!(earning_data$Security == "EPICME" & earning_data$date == "2020-04-16"),]
+earning_data <- earning_data[!(earning_data$Security == "EPICME" & earning_data$date == "2020-08-13"),]
+earning_data <- earning_data[!(earning_data$Security == "RIVERME" & earning_data$date == "2020-04-30"),]
+earning_data <- earning_data[!(earning_data$Security == "RIVERME" & earning_data$date == "2020-08-31"),]
+
+# Remove SOFF as this company had extreme values
+earning_data <- earning_data %>% filter(Security != "SOFF")
+
 rm(EPS)
+
+## TEST ##
+#test <- stock_data %>% filter(PX_VOLUME != 0)
 
 #_VOLATILITY / ABNORMAL VOLUME - PLOT _______________________________________________________________________________________
 
-plot_data <- stock_data %>% select(c(Security, date, AV_alt30, AV_alt30lag, AV_alt20, AV_alt20lag, AV1_alt, AVol_alt, AVol_alt1, AVol_alt2, AVol_alt3, news_month, news_month3, news_month4, daily_return, MR)) %>% 
+plot_data <- stock_data %>% select(c(Security, date, AV_alt30, AV_alt30lag, AV_alt20, AV_alt20lag, AV1_alt, AVol_alt1, AVol_alt2, AVol_alt3, news_month, news_month3, news_month4, daily_return, MR, news)) %>% 
   drop_na()
 
 plot_data$Security <- gsub(" .*$", "", plot_data$Security, ignore.case = T)
@@ -298,7 +319,7 @@ plot_data$ES_q[!is.na(plot_data$ES_4d)] <- cut(plot_data$ES_4d[!is.na(plot_data$
 
 for (i in 1:nrow(plot_data)) {
   if (is.na(plot_data$quarter[i]) == F) {
-    for (j in 40:90) {
+    for (j in -2:5) {
       plot_data$time[i + j] <- j
       plot_data$news_q[i + j] <- plot_data$news_q[i]
       plot_data$ES_q[i + j] <- plot_data$ES_q[i]
@@ -311,13 +332,16 @@ rm(i, j)
 plot_data <- plot_data %>% drop_na(time)
 
 # Plot of abnormal volume from -2 to +10 surrounding earnings announcement
-plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N4")) %>% summarize(m_AV = mean(AV1_alt)) %>%  
-  ggplot(.,aes(fill = news_q, x = time, y = m_AV, linetype = news_q,)) +
-  geom_line(aes(colour = news_q)) +
-  scale_color_manual("News Q", values = c("N1" = "#4EBCD5", "N4" = "#1C237E")) +
-  scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
-  labs(title = "Figure 3: Mean Abnormal Volume Around Earnings Announcement",
-       x = "Days from Announcement", y = "Mean Abnormal Volume") +
+plot_data %>% filter(news_q %in% c("N1", "N4")) %>% 
+  mutate(labels = ifelse(news_q == "N1", "Corona Bottom", "Corona Top")) %>% 
+  group_by(labels, time) %>% 
+  summarize(m_AV = mean(AV_alt20)) %>%  
+  ggplot(.,aes(fill = labels, x = time, y = m_AV * 100, linetype = labels)) +
+  geom_line(aes(colour = labels)) +
+  scale_color_manual("News", values = c("Corona Bottom" = "#4EBCD5", "Corona Top" = "#1C237E")) +
+  scale_linetype_manual(name = "News", values = c("solid", "longdash")) +
+  labs(title = "Mean Abnormal Volume Around Earnings Announcement",
+       x = "Days from Announcement", y = "Mean Abnormal Volume (%)") +
   scale_x_continuous(n.breaks = 11) +
   theme_bw() +
   theme(text = element_text(family = "serif"),
@@ -327,13 +351,16 @@ plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N4")) %>% s
         panel.grid.minor.y = element_blank())
 
 # Volatility
-plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% summarize(m_AVol = mean(AVol_alt)) %>% 
-  ggplot(.,aes(x = time, y = m_AVol, linetype = news_q, fill = news_q,  shape = news_q)) +
-  geom_line(aes(colour = news_q)) +
-  scale_color_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
-  scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
-  labs(title = "Figure 4: Mean Abnormal Volatility Around Earnings Announcement",
-       x = "Days from Announcement", y = "Mean abnormal volatility") +
+plot_data %>% filter(news_q %in% c("N1", "N4")) %>% 
+  mutate(labels = ifelse(news_q == "N1", "Corona Bottom", "Corona Top")) %>% 
+  group_by(labels, time) %>% 
+  summarize(m_AVol = mean(AVol_alt1)) %>% 
+  ggplot(.,aes(x = time, y = m_AVol * 100, linetype = labels, fill = labels,  shape = labels)) +
+  geom_line(aes(colour = labels)) +
+  scale_color_manual("News", values = c("Corona Bottom" = "#4EBCD5", "Corona Top" = "#1C237E")) +
+  scale_linetype_manual(name = "News", values = c("solid", "longdash")) +
+  labs(title = "Mean Abnormal Volatility Around Earnings Announcement",
+       x = "Days from Announcement", y = "Mean abnormal volatility (%)") +
   scale_x_continuous(n.breaks = 11) +
   theme_bw() +
   theme(text = element_text(family = "serif"),
@@ -341,6 +368,7 @@ plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% s
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
 
+mean(plot_data$news[plot_data$news_month4 == "N1"])
 
 # CAR over time
 plot_data$CAR_start <- NA
@@ -354,14 +382,14 @@ for (i in 1:nrow(plot_data)) {
 }
 
 
-plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N5")) %>% 
+plot_data %>% group_by(news_q, time) %>% filter(news_q %in% c("N1", "N4")) %>% 
   #filter(!month == "3") %>% # Without March
   #filter(ES_q == "1") %>% # Only a spesific ES
   summarize(m_CAR = mean(CAR_start)) %>% 
   ggplot(.,aes(color = news_q, x = time, y = m_CAR, linetype = news_q, shape = news_q)) +
   geom_line() +
   geom_point() +
-  scale_color_manual("News Q", values = c("N1" = "#4EBCD5", "N5" = "#1C237E")) +
+  scale_color_manual("News Q", values = c("N1" = "#4EBCD5", "N4" = "#1C237E")) +
   scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
   scale_shape_manual(name = "News Q", values = c(15, 17)) +
   geom_vline(xintercept = 0, linetype = 4, colour = "black") + 
@@ -404,8 +432,8 @@ stock_data$Security <- gsub(" .*$", "", stock_data$Security, ignore.case = T)
 stock_data <- merge(stock_data, earning_data, by = c("Security", "date")) %>% 
   mutate_at(c("actual","estimated"),as.numeric) # need to make values numeric
 
-# Remove SOFF as this company had extreme values
-stock_data <- stock_data %>% filter(Security != "SOFF")
+
+
 
 # Incorporating accounting variables
 
@@ -449,10 +477,11 @@ stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
 
 # Make B/M istead of M/B and MarketCap. Take log of both
 # Fix IO share to make sure no values is greater than 0.
-stock_data <- stock_data %>% mutate(
+test <- stock_data %>% mutate(
   logMktCap = log(CUR_MKT_CAP),
-  BtoM = 1/mean_MtoB,
+  BtoM = (1/mean_MtoB),
   logBtoM = log(BtoM),
+  logBtoM2 = log(BtoM - min(BtoM, na.rm = T)),
   mean_IO_share = ifelse(mean_IO_share>100,100,mean_IO_share))
 
 
@@ -574,7 +603,6 @@ coeftest(lm.fit, df = Inf, vcov = vcovHC(lm.fit, type = "HC1"))
 
 
 # Abnormal volume ----------------------------------------------------------------
-
 stock_data$ES_abs = abs(stock_data$ES)
 stock_data$ES_quantile2 <- cut(stock_data$ES_abs,
                                breaks = quantile(stock_data$ES_abs, seq(0, 1, l = 6), na.rm = T, type = 8),
@@ -586,7 +614,7 @@ stock_data$news_q <- stock_data$news_month4
 stock_data  %>%
   filter(news_q == "N1" | news_q == "N4") %>%
   group_by(news_q,ES_quantile2) %>%
-  summarise(mean = mean(AV_DValt1, na.rm = T)) %>% ungroup() %>%
+  summarise(mean = mean(AV_alt20, na.rm = T)) %>% ungroup() %>%
   na.omit(ES) %>% 
   ggplot(., aes(x = ES_quantile2, y = mean, group = news_q)) +
   geom_line(aes(colour = news_q)) + 
@@ -873,35 +901,64 @@ stargazer(mod1, mod2, mod3, mod4,
 
 # Table 4: Abnormal Volatility________________________________________________________________________________
 stock_data$news2 <- stock_data$news/1000
-mod1 <- lm(AVol_reg1 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data=stock_data)
-mod2 <- lm(AVol_reg2 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data=stock_data)
-mod3 <- lm(AVol_reg3 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data=stock_data)
+stock_data$news_q <- stock_data$news_month4
+stock_data$month <- factor(stock_data$month,
+                                    levels = c("February", "March", "April", "May", "June", "July", "August", "September"))
+
+stock_data$day <- factor(stock_data$day,
+                                  levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
+
+
+mod1 <- lm(AVol_reg1 ~ news2, data = stock_data)
+mod2 <- lm(AVol_reg1 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data = stock_data)
+
+mod3 <- stock_data %>%  filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% 
+  lm(AVol_reg1 ~ news2, data = .)
+
+mod4 <- stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% 
+  lm(AVol_reg1 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data = .)
+
+mod5 <- stock_data %>% filter(news_q == "N1" | news_q == "N4") %>% 
+  lm(AVol_reg1 ~ news2, data = .)
+
+mod6 <- stock_data %>% filter(news_q == "N1" | news_q == "N4") %>% 
+  lm(AVol_reg1 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data = .)
+
 
 rob_se <- list(sqrt(diag(vcovHC(mod1, type = "HC1"))),
                sqrt(diag(vcovHC(mod2, type = "HC1"))),
-               sqrt(diag(vcovHC(mod3, type = "HC1"))))
+               sqrt(diag(vcovHC(mod3, type = "HC1"))),
+               sqrt(diag(vcovHC(mod4, type = "HC1"))),
+               sqrt(diag(vcovHC(mod5, type = "HC1"))),
+               sqrt(diag(vcovHC(mod6, type = "HC1"))))
 
 t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
                coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
-               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))))
+               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
+               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))),
+               coef(mod5)/sqrt(diag(vcovHC(mod5, type = "HC1"))),
+               coef(mod6)/sqrt(diag(vcovHC(mod6, type = "HC1"))))
 
 p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
                coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
-               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4])
+               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
+               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4], 
+               coeftest(mod5, df = Inf, vcov = vcovHC(mod5, type = "HC1"))[,4],
+               coeftest(mod6, df = Inf, vcov = vcovHC(mod6, type = "HC1"))[,4])
 
-stargazer(mod1, mod2, mod3,
+stargazer(mod1, mod2, mod3, mod4, mod5, mod6,
           digits = 3,
           header = FALSE,
           type = "html",
           #se = rob_se,
           se = t_vals,
           p = p_vals,
-          dep.var.labels = c("Squared returns", "Parkinsons","German-Klass"),
+          dep.var.labels = c("AVol[0,1]"),
           omit.stat = c("adj.rsq","f","ser"),
-          omit = c("month", "logMktCap", "logBtoM", "mean_IO_share", "mean_analyst","Constant"),
+          omit = c("Constant"),
           add.lines = list(c("Controls", "X","X","X")),
           table.layout = "n-=ldc-tas-",
-          covariate.labels = c("Corona News", "Absolut Earnings <br> Surprise Quantile"),
+          #covariate.labels = c("Corona News", "Absolut Earnings <br> Surprise Quantile"),
           title = "Table 4: <br> Linear Regression Models of how Corona-News effect Abnormal Volatility",
           notes = "Table 4 shows the results of the multivariate regression on how the amount of clicks on Corona articles published by NRK effects abnormal volatility of stocks around earnings announcements. Abnormal volatility for each stock is the average abnormal volatility of day 0 and 1. Since volatility is expected to react to both positive and negative earnings surprises the absolute earnings surprise is used and divided into 5 quantiles. Control variables include indicators for each month, market capitalization deciles, market-to-book ratio deciles, share of institutional ownership, and Number of Analysts. All control variables are averaged for each month. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
           notes.append = FALSE,
@@ -909,7 +966,7 @@ stargazer(mod1, mod2, mod3,
           notes.align = "l",
           model.numbers = FALSE,
           report = "vc*s",
-          column.labels = c("(1)", "(2)", "(3)"))
+          column.labels = c("(1)", "(2)", "(3)", "(4)", "(5)", "(6)"))
 
 
 
@@ -1006,27 +1063,30 @@ stargazer(mod1, mod2, mod3, mod4,
 
 # Plots
 # Figure 5a: CAR[0,1]_________________________________________________________________________________
-stock_data$news_q <- stock_data$news_month
+stock_data$news_q <- stock_data$news_month4
 stock_data %>% 
   group_by(ES_quantile) %>% 
   mutate(ES_names = round(mean(ES), 3)) %>% ungroup() %>% 
   select(news_q, ES_quantile, CAR2, ES_names, ES) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q, ES_quantile) %>%
+  filter(news_q == "N1" | news_q == "N4") %>%
+  mutate(names = ifelse(news_q == "N1", "Corona Bottom", "Corona Top")) %>% 
+  group_by(names, ES_quantile) %>%
   summarise(mean = mean(CAR2, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
   na.omit(ES) %>% 
   
-  ggplot(., aes(x = as.factor(ES_names), y = mean*100, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
+  ggplot(., aes(x = as.factor(ES_names), y = mean*100, group = names, linetype = names, colour = names, shape = names)) +
   geom_line() + 
   geom_point() +
-  scale_color_manual(name = "News Q", values = c("#4EBCD5", "#1C237E")) +
-  scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
-  scale_shape_manual(name = "News Q", values = c(15, 17)) +
-  labs(title = "Figure 5: Average CAR[0,2] for Each Earnings Surprise Quantile",
-       x = "Average Earnings Surprise in each Quantile", y = "CAR[0,2] in %") +
+  scale_color_manual(name = "News", values = c("#4EBCD5", "#1C237E")) +
+  scale_linetype_manual(name = "News", values = c("solid", "longdash")) +
+  scale_shape_manual(name = "News", values = c(15, 17)) +
+  labs(title = "Average CAR[0,2] for Each Earnings Surprise Quantile",
+       x = "Average Earnings Surprise in each Quantile", y = "CAR[0,2] (%)") +
   theme_bw() +
   theme(text = element_text(family = "serif"),
-        panel.grid.minor.y = element_blank())
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank())
 
 
 
