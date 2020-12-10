@@ -411,7 +411,7 @@ earning_data <- earning_data %>% filter(Security != "SOFF")
 # Create dataframe for accounting variables:
 # remove some unneccesary variables as well as PX_TO_BOOK as Book to market had more obs.
 acc_vars <- read_excel("Stock_data/accounting_vars.xlsx") %>% as.data.frame() %>% 
-  select(-c(date1, time, PX_TO_BOOK_RATIO, date2, comparable, period))
+  select(-c(time, PX_TO_BOOK_RATIO, date2, comparable, period))
 
 acc_vars$Security <- gsub(" .*$", "", acc_vars$Security, ignore.case = T)
 acc_vars$date <- as.Date(acc_vars$date)
@@ -461,7 +461,7 @@ temp3 <- acc_vars %>% select(Security, date, date3, EQY_INST_PCT_SH_OUT) %>%
 temp4 <- acc_vars %>% select(Security, date, MARKET_CAPITALIZATION_TO_BV) %>% 
   mutate(month = month(date), year = year(date) ) %>% 
   group_by(Security, year, month) %>% 
-  summarize(mean_MtoB = mean(MARKET_CAPITALIZATION_TO_BV))
+  summarize(mean_MtoB = mean(MARKET_CAPITALIZATION_TO_BV, na.rm = T))
 
 for (i in unique(temp4$Security)) { # Fill in missing values
   temp4$mean_MtoB[temp4$Security == i] <- na.locf(temp4$mean_MtoB[temp4$Security == i], na.rm = FALSE)
@@ -480,7 +480,7 @@ stock_data$mean_analyst[is.na(stock_data$mean_analyst)] <- 0
 
 # Make B/M istead of M/B and MarketCap. Take log of both
 # Fix IO share to make sure no values is greater than 0.
-test <- stock_data %>% mutate(
+stock_data <- stock_data %>% mutate(
   logMktCap = log(CUR_MKT_CAP),
   BtoM = (1/mean_MtoB),
   logBtoM = log(BtoM),
