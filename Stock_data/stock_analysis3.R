@@ -137,7 +137,8 @@ stock_data <- stock_data %>%
          
          
          PX_5 = lag(PX_LAST, n=5),                                                         # Price five days ago, needed later
-         MR = c(NA,diff(T_MC))/lag(T_MC, 1),                                               # Market return, diff takes the difference between last observation and current
+         MR = log(T_MC/lag(T_MC, 1)),                                               # Market return, diff takes the difference between last observation and current
+         #MR = Winsorize((log(T_MC/lag(T_MC, 1))), minval = NULL, maxval = NULL, probs = c(0.05, 0.95), na.rm = T, type = 7),
          
          #daily_return = log(PX_LAST/PX_OPEN),                                              # Daily return, might change to log returns instead
          daily_return = Winsorize((log(PX_LAST/lag(PX_LAST))), minval = NULL, maxval = NULL, probs = c(0.05, 0.95),
@@ -323,12 +324,13 @@ plot_data %>% filter(news_q %in% c("N1", "N4")) %>%
   mutate(labels = ifelse(news_q == "N1", "Corona Bottom", "Corona Top")) %>% 
   group_by(labels, time) %>% 
   summarize(m_AV = mean(AV_alt20)) %>%  
-  ggplot(.,aes(fill = labels, x = time, y = m_AV * 100, linetype = labels)) +
+  ggplot(.,aes(fill = labels, x = time, y = m_AV * 10000, linetype = labels)) +
   geom_line(aes(colour = labels)) +
-  scale_color_manual("News", values = c("Corona Bottom" = "#4EBCD5", "Corona Top" = "#1C237E")) +
-  scale_linetype_manual(name = "News", values = c("solid", "longdash")) +
+  scale_y_continuous(breaks = seq(0, 10000, by = 5000)) +
+  scale_color_manual("News Readership", values = c("Corona Bottom" = "#4EBCD5", "Corona Top" = "#1C237E")) +
+  scale_linetype_manual(name = "News Readership", values = c("solid", "longdash")) +
   labs(title = "Mean Abnormal Volume Around Earnings Announcement",
-       x = "Days from Announcement", y = "Mean Abnormal Volume (%)") +
+       x = "Days from Announcement", y = "Mean Abnormal Volume (bps)") +
   scale_x_continuous(n.breaks = 11) +
   theme_bw() +
   theme(text = element_text(family = "serif"),
@@ -342,12 +344,13 @@ plot_data %>% filter(news_q %in% c("N1", "N4")) %>%
   mutate(labels = ifelse(news_q == "N1", "Corona Bottom", "Corona Top")) %>% 
   group_by(labels, time) %>% 
   summarize(m_AVol = mean(AVol_alt1)) %>% 
-  ggplot(.,aes(x = time, y = m_AVol * 100, linetype = labels, fill = labels,  shape = labels)) +
+  ggplot(.,aes(x = time, y = m_AVol * 10000, linetype = labels, fill = labels,  shape = labels)) +
   geom_line(aes(colour = labels)) +
-  scale_color_manual("News", values = c("Corona Bottom" = "#4EBCD5", "Corona Top" = "#1C237E")) +
-  scale_linetype_manual(name = "News", values = c("solid", "longdash")) +
+  scale_y_continuous(breaks = seq(0, 40, by = 20)) +
+  scale_color_manual("News Readership", values = c("Corona Bottom" = "#4EBCD5", "Corona Top" = "#1C237E")) +
+  scale_linetype_manual(name = "News Readership", values = c("solid", "longdash")) +
   labs(title = "Mean Abnormal Volatility Around Earnings Announcement",
-       x = "Days from Announcement", y = "Mean abnormal volatility (%)") +
+       x = "Days from Announcement", y = "Mean abnormal volatility (bps)") +
   scale_x_continuous(n.breaks = 11) +
   theme_bw() +
   theme(text = element_text(family = "serif"),
@@ -489,8 +492,8 @@ stock_data <- stock_data %>% mutate(
 
 
 # Share turnover
-stock_data$share_turnover1 <- stock_data$PX_VOLUME / (stock_data$mean_share * 10^6)
-stock_data$share_turnover30 <- stock_data$mean_volume / (stock_data$mean_share * 10^6)
+stock_data$share_turnover1 <- (stock_data$PX_VOLUME / (stock_data$mean_share * 10^6)) * 100
+stock_data$share_turnover30 <- (stock_data$mean_volume / (stock_data$mean_share * 10^6)) * 100
 
 assign("last.warning", NULL, envir = baseenv()) # removes warning messages
 
@@ -542,7 +545,7 @@ stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
 
 # Foster model 2
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR1, stock_data$news_month4)
-earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR2, stock_data$news_month)
+earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR2, stock_data$news_month4)
 earnings_calc(stock_data$eps, stock_data$ES_4d, stock_data$CAR40, stock_data$news_month)
 
 stock_data$ES[!is.na(stock_data$ES)] %>% length() # Number of observations
@@ -701,10 +704,11 @@ stargazer(summary(as.factor(month(earning_data$date,label = T, abbr = T))), #Cre
           title = "Distribution of earnings announcment through the sample period")
 # add: width="600" ,after: style="text-align:center"
 
+
 # As a plot
 plot1A <- summary(as.factor(month(earning_data$date,label = T, abbr = T))) %>% as.data.frame() %>% 
   rename(earnings = ".")
-plot1A$month <- factor(row.names(plot1A),levels = c("jan","feb","mar","apr","mai","jun","jul","aug","sep","okt","nov", "des"))
+plot1A$month <- factor(row.names(plot1A),levels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
 
 plot1 <-plot1A %>%  
   ggplot(.,aes(x = month, y = earnings)) +
@@ -713,7 +717,7 @@ plot1 <-plot1A %>%
   labs(title = "Announcements per Month",
        x = "Month", y = "Number of Announcements") +
   theme_bw() +
-  theme(text = element_text(family = "serif"),
+  theme(text = element_text(size=12, family = "serif"),
         #legend.position="top",
         panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank(),
@@ -725,9 +729,9 @@ stargazer(summary(as.factor(wday(stock_data$date,label = T, abbr = F))), #Create
           title = "Distribution of Earnings Announcment through the sample period")
 
 # As a plot
-plot1B <-summary(as.factor(wday(stock_data$date,label = T, abbr = F))) %>% as.data.frame() %>% 
+plot1B <-summary(as.factor(wday(stock_data$date,label = T, abbr = T))) %>% as.data.frame() %>% 
   rename(earnings = ".")
-plot1B$month <- factor(row.names(plot1B), levels = c("mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"))
+plot1B$month <- factor(row.names(plot1B), levels = c(levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")))
 
 plot2 <- plot1B %>%  
   ggplot(.,aes(x = month, y = earnings)) +
@@ -736,20 +740,19 @@ plot2 <- plot1B %>%
   labs(title = "Announcements per Day",
        x = "Day of Week", y = "Number of Announcements") +
   theme_bw() +
-  theme(text = element_text(family = "serif"),
-        #legend.position="top",
+  theme(text = element_text(size=12, family = "serif"),
         panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank())
 
-library(gridExtra)
-grid.arrange(plot1, plot2, ncol=2)
+library("ggpubr")
+ggarrange(plot1, plot2, ncol = 2, nrow = 1)
 
 rm(plot1B, plot1A)
 
 # Table 1b.1:
 #   Mean, median, . see Ungehauer
-df <- stock_data %>% select(news, ES,CAR2,CAR40,AV_alt30,AVol_alt1,CUR_MKT_CAP ,mean_analyst, mean_IO_share, 
+df <- stock_data %>% filter(!is.na(ES_quantile)) %>% select(news, ES,CAR1,AV_alt30,AVol_alt1,CUR_MKT_CAP ,mean_analyst, mean_IO_share, 
                             BtoM, share_turnover30) %>% 
   mutate(news = news/1000,
          mean_analyst = exp((mean_analyst))-1,
@@ -757,10 +760,7 @@ df <- stock_data %>% select(news, ES,CAR2,CAR40,AV_alt30,AVol_alt1,CUR_MKT_CAP ,
 
 stargazer(df, type = "html",
           title = "Table 2: Summary statistics news and company data",
-          covariate.labels=c("Pageviews Corona-News (1000)","Earnings Surprise",
-                             "CAR[0,2]","CAR[3,40]","AV[0,1]","AVOLA[0,1]",
-                             "Market cap (BNOK)", "Nr. of Analysts", "Inst. Ownership (%)",
-                             "Book-to-Market (%)","Share Turnover"),
+          #covariate.labels=c("Pageviews Corona-News (1000)","Earnings Surprise","CAR[0,1]","AV[0,1]","AVOLA[0,1]","Market cap (BNOK)", "Nr. of Analysts", "Inst. Ownership (%)","Book-to-Market (%)","Share Turnover"),
           notes.append = FALSE,
           notes.label = "",
           notes.align = "l",
@@ -779,16 +779,19 @@ stock_data$news_q <- stock_data$news_month4
 # T-test
 # X needs to be values of N1 and Y needs to be values of N5
 df <- stock_data %>%
-  select(news_q, news, ES, CAR2, CAR40, AV_alt20lag, AVol_alt, CUR_MKT_CAP, BtoM, mean_analyst, mean_IO_share, share_turnover30) %>%
+  select(news_q, news, ES, CAR1, AV_alt20lag, AVol_alt1, CUR_MKT_CAP, BtoM, mean_analyst, mean_IO_share, share_turnover30, ES_quantile) %>%
   filter(news_q == "N1" | news_q == "N4") %>%
+  filter(!is.na(ES_quantile)) %>% 
+  mutate(news = news/1000,
+         mean_analyst = exp((mean_analyst))-1,
+         CUR_MKT_CAP = (CUR_MKT_CAP)/1000) %>% 
   group_by(news_q) %>%
-  summarize(cnews = mean(news, na.rm = T)/1000,
+  summarize(cnews = mean(news, na.rm = T),
             ES = mean(ES, na.rm = T),
-            CAR1 = mean(CAR2, na.rm = T),
-            CAR40 = mean(CAR40, na.rm = T),
+            CAR1 = mean(CAR1, na.rm = T),
             AV = mean(AV_alt20lag, na.rm = T),
-            AVol = mean(AVol_alt, na.rm = T),
-            mkt_cap = mean(CUR_MKT_CAP, na.rm = T)/1000,
+            AVol = mean(AVol_alt1, na.rm = T),
+            mkt_cap = mean(CUR_MKT_CAP, na.rm = T),
             B_M = mean(BtoM, na.rm = T),
             analyst = mean(mean_analyst, na.rm = T),
             IO_share = mean(mean_IO_share, na.rm = T),
@@ -798,9 +801,10 @@ df <- stock_data %>%
   mutate_at(c("N1","N4"), as.numeric) %>%
   mutate(diff = N4-N1)
 
-df2 <- stock_data %>% 
-  select(news_q, news, ES, CAR2, CAR40, AV_alt20lag, AVol_alt, CUR_MKT_CAP, BtoM, mean_analyst, mean_IO_share, share_turnover30) %>% 
-  filter(news_q == "N1" | news_q == "N4")
+df2 <- stock_data %>%
+  select(news_q, news, ES, CAR1, AV_alt20lag, AVol_alt1, CUR_MKT_CAP, BtoM, mean_analyst, mean_IO_share, share_turnover30, ES_quantile) %>%
+  filter(news_q == "N1" | news_q == "N4") %>%
+  filter(!is.na(ES_quantile))
 
 
 # loop calculating p-values and standard errors
@@ -811,7 +815,7 @@ for (i in 2:(ncol(df2)-1)) {
 }
 
 
-df$rowname <- c("Corona- Pageviews (1000)", "Earnings Surprise", "CAR[0,2]", "CAR[3,42]", "AV[0,1]", "AVOLA[0,1]", "Market Cap (BNOK)", "Book-to-Market (%)", "Nr. of Analysts", "Inst. Ownership (%)", "Share Turnover")
+df$rowname <- c("Corona- Pageviews (1000)", "Earnings Surprise", "CAR[0,1]", "AV[0,1]", "AVOLA[0,1]", "Market Cap (BNOK)", "Book-to-Market (%)", "Nr. of Analysts", "Inst. Ownership (%)", "Share Turnover")
 stargazer(df, 
           digits = 3,
           header = F,
@@ -841,63 +845,74 @@ rm(df2)
 # Table 3: Abnormal Volume______________________________________________________________________________
 # Creating a nice table for output statistics:
 # No interaction
+
 stock_data$news2 <- stock_data$news/1000
-mod1 <- stock_data %>%
-  lm(AV_alt20lag ~ news2 + ES_quantile2, data = .)
-coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))
+stock_data$AV_alt20lag_2 <- stock_data$AV_alt20lag * 10000
+stock_data$month <- factor(stock_data$month,
+                                    levels = c("February", "March", "April", "May", "June", "July", "August", "September"))
+
+mod1 <- stock_data %>% filter(!is.na(ES)) %>% 
+  lm(AV_alt20lag_2 ~ news2, data = .)
+coeftest(mod1, vcov = vcovHC(mod1, type = "HC1"))
 
 mod2 <- stock_data %>%
-  lm(AV_alt20lag ~ news2 + ES_quantile2 + 
-       month + (logMktCap + logBtoM + mean_IO_share + mean_analyst), data = .)
-coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))
+  lm(AV_alt20lag_2 ~ news2 + 
+       (logMktCap + BtoM + mean_analyst + mean_IO_share + share_turnover30)+ as.factor(ES_quantile2) + month, data = .)
+coeftest(mod2, vcov = vcovHC(mod2, type = "HC1"))
 
-mod3 <- stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(ES_quantile = ifelse(ES_quantile2 == 1, 0, 1)) %>% 
-  lm(AV_alt20lag ~ news2 + I(ES_quantile2), data = .)
-coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))
-
-mod4 <- stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% mutate(ES_quantile = ifelse(ES_quantile2 == 1, 0, 1)) %>% 
-  lm(AV_alt20lag ~ news2 + I(ES_quantile2) + 
-       month + (logMktCap + logBtoM + mean_IO_share + mean_analyst), data = .)
-coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))
 
 # Values in table
-rob_se <- list(sqrt(diag(vcovHC(mod1, type = "HC1"))),
-               sqrt(diag(vcovHC(mod2, type = "HC1"))),
-               sqrt(diag(vcovHC(mod3, type = "HC1"))),
-               sqrt(diag(vcovHC(mod4, type = "HC1"))))
-
 t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
-               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
-               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
-               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))))
+               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))))
 
-p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
-               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
-               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
-               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4])
+p_vals <- list(coeftest(mod1, vcov = vcovHC(mod1, type = "HC1"))[,4], 
+               coeftest(mod2, vcov = vcovHC(mod2, type = "HC1"))[,4])
 
-
-stargazer(mod1, mod2, mod3, mod4, 
+# All controls
+stargazer(mod1, mod2, 
           digits = 3,
           header = FALSE,
           type = "html",
           se = t_vals,
           p = p_vals,
           dep.var.labels = c("AV[0,1]"),
-          omit.stat = c("adj.rsq","f","ser"),
-          omit = c("month", "logMktCap", "logBtoM", "mean_IO_share", "mean_analyst", "Constant"),
-          add.lines = list(c("Controls", "", "X","","X")),
+          omit.stat = c("rsq","f","ser"),
+          omit = c("Constant"),
           table.layout = "n-=ldc-tas-",
-          covariate.labels = c("Corona News", "Absolut Earnings <br> Surprise Quantile", "Top and Bottom Absolut <br> Earnings Surprise Quantiles"),
-          title = "Table 3: <br> Linear Regression Models of how Corona-News effect Abnormal Volume",
-          notes = "Table 3 shows the results of the multivariate regression on how the amount of Corona articles published by NRK effects abnormal trading volume of stocks publishing an earnings announcement on the same day. In regression (3) and (4) only the observations from the top two Cov-quantiles are used. Regression (2) and (4) adjust for control the variables Month, Market Capitalization Deciles, Market-to-Book ratio Deciles, IO share and Number of Analysts. All control variables are averaged for each month. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
+          covariate.labels = c("CNEWS", "Market cap (BNOK)", "Book-to-Market (%)",  "log(Nr. of Analysts)", "Inst. Ownership (%)", "Share Turnover", "Abs ES Q2","Abs ES Q3","Abs ES Q4","Abs ES Q5","March", "April", "May", "June", "July", "August", "September"),
+          title = "Table 3.1: <br> Linear Regression Models of how Corona-News effect Abnormal Volume",
+          notes = "Table 3.1 shows the results of the multivariate regression on how the amount of Corona articles published by NRK effects abnormal trading volume of stocks publishing an earnings announcement on the same day. In regression (3) and (4) only the observations from the top two Cov-quantiles are used. Regression (2) and (4) adjust for control the variables Month, Market Capitalization Deciles, Market-to-Book ratio Deciles, IO share and Number of Analysts. All control variables are averaged for each month. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
           notes.append = FALSE,
           notes.label = "",
           notes.align = "l",
           model.numbers = FALSE,
           star.cutoffs = c(0.1, 0.05, 0.01),
           report = "vc*s",
-          column.labels = c("(1)", "(2)", "(3)", "(4)"))
+          column.labels = c("(1)", "(2)"))
+
+# Limited controls
+stargazer(mod1, mod2, 
+          digits = 3,
+          header = FALSE,
+          type = "html",
+          se = t_vals,
+          p = p_vals,
+          dep.var.labels = c("AV[0,1]"),
+          omit.stat = c("rsq","f","ser"),
+          omit = c("month", "logMktCap", "BtoM", "mean_IO_share", "mean_analyst", "share_turnover30", "Constant"),
+          add.lines = list(c("Company Controls", "", "X", "X"), c("Abs ES Indicators", "", "X", "X"), c("Month Indicators", "", "X", "X")),
+          table.layout = "n-=ldc-tas-",
+          covariate.labels = c("CNEWS"),
+          title = "Table 4.1: <br> Linear Regression Models of how Corona-News effect Abnormal Volume",
+          notes = "Table 4.1 shows the results of the multivariate regression on how the amount of Corona articles published by NRK effects abnormal trading volume of stocks publishing an earnings announcement on the same day. In regression (3) and (4) only the observations from the top two Cov-quantiles are used. Regression (2) and (4) adjust for control the variables Month, Market Capitalization Deciles, Market-to-Book ratio Deciles, IO share and Number of Analysts. All control variables are averaged for each month. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
+          notes.append = FALSE,
+          notes.label = "",
+          notes.align = "l",
+          model.numbers = FALSE,
+          star.cutoffs = c(0.1, 0.05, 0.01),
+          report = "vc*s",
+          column.labels = c("(1)", "(2)"))
+
 
 
 
@@ -906,63 +921,57 @@ stargazer(mod1, mod2, mod3, mod4,
 # Table 4: Abnormal Volatility________________________________________________________________________________
 stock_data$news2 <- stock_data$news/1000
 stock_data$news_q <- stock_data$news_month4
+stock_data$AVol_reg1_2 <- stock_data$AVol_reg1*10000
+
+
+
 stock_data$month <- factor(stock_data$month,
-                                    levels = c("February", "March", "April", "May", "June", "July", "August", "September"))
-
-stock_data$day <- factor(stock_data$day,
-                                  levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
+                           levels = c("February", "March", "April", "May", "June", "July", "August", "September"))
 
 
-mod1 <- lm(AVol_reg1 ~ news2, data = stock_data)
-mod2 <- lm(AVol_reg1 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data = stock_data)
 
-mod3 <- stock_data %>%  filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% 
-  lm(AVol_reg1 ~ news2, data = .)
+mod1 <- stock_data %>% filter(!is.na(ES)) %>% lm(AVol_reg1_2 ~ news2, data = .)
+coeftest(mod1, vcov = vcovHC(mod1, type = "HC1"))
+mod2 <- lm(AVol_reg1_2 ~ news2 + logMktCap + BtoM + mean_IO_share + mean_analyst + factor(ES_quantile2) + month, data = stock_data)
+coeftest(mod2, vcov = vcovHC(mod2, type = "HC1"))
 
-mod4 <- stock_data %>% filter(ES_quantile2 == 1 | ES_quantile2 == 5) %>% 
-  lm(AVol_reg1 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data = .)
 
-mod5 <- stock_data %>% filter(news_q == "N1" | news_q == "N4") %>% 
-  lm(AVol_reg1 ~ news2, data = .)
 
-mod6 <- stock_data %>% filter(news_q == "N1" | news_q == "N4") %>% 
-  lm(AVol_reg1 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data = .)
+# mod5 <- stock_data %>% filter(news_q == "N1" | news_q == "N4") %>% 
+#   lm(AVol_reg1 ~ news2, data = .)
+# 
+# mod6 <- stock_data %>% filter(news_q == "N1" | news_q == "N4") %>% 
+#   lm(AVol_reg1 ~ news2 + ES_quantile2 + month + logMktCap + logBtoM + mean_IO_share + mean_analyst, data = .)
+
+
 
 
 rob_se <- list(sqrt(diag(vcovHC(mod1, type = "HC1"))),
-               sqrt(diag(vcovHC(mod2, type = "HC1"))),
-               sqrt(diag(vcovHC(mod3, type = "HC1"))),
-               sqrt(diag(vcovHC(mod4, type = "HC1"))),
-               sqrt(diag(vcovHC(mod5, type = "HC1"))),
-               sqrt(diag(vcovHC(mod6, type = "HC1"))))
+               sqrt(diag(vcovHC(mod2, type = "HC1"))))
+
+
 
 t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
-               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
-               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
-               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))),
-               coef(mod5)/sqrt(diag(vcovHC(mod5, type = "HC1"))),
-               coef(mod6)/sqrt(diag(vcovHC(mod6, type = "HC1"))))
+               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))))
 
-p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
-               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
-               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
-               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4], 
-               coeftest(mod5, df = Inf, vcov = vcovHC(mod5, type = "HC1"))[,4],
-               coeftest(mod6, df = Inf, vcov = vcovHC(mod6, type = "HC1"))[,4])
 
-stargazer(mod1, mod2, mod3, mod4, mod5, mod6,
+
+p_vals <- list(coeftest(mod1, vcov = vcovHC(mod1, type = "HC1"))[,4], 
+               coeftest(mod2, vcov = vcovHC(mod2, type = "HC1"))[,4])
+
+
+# All controls
+stargazer(mod1, mod2,
           digits = 3,
           header = FALSE,
           type = "html",
-          #se = rob_se,
           se = t_vals,
           p = p_vals,
-          dep.var.labels = c("AVol[0,1]"),
-          omit.stat = c("adj.rsq","f","ser"),
+          dep.var.labels = c("AVOLA[0,1]"),
+          omit.stat = c("rsq","f","ser"),
           omit = c("Constant"),
-          add.lines = list(c("Controls", "X","X","X")),
           table.layout = "n-=ldc-tas-",
-          #covariate.labels = c("Corona News", "Absolut Earnings <br> Surprise Quantile"),
+          covariate.labels = c("CNEWS", "Market cap (BNOK)", "Book-to-Market (%)",  "log(Nr. of Analysts)", "Inst. Ownership (%)", "Share Turnover (%)", "Abs ES Q2","Abs ES Q3","Abs ES Q4","Abs ES Q5","March", "April", "May", "June", "July", "August", "September"),
           title = "Table 4: <br> Linear Regression Models of how Corona-News effect Abnormal Volatility",
           notes = "Table 4 shows the results of the multivariate regression on how the amount of clicks on Corona articles published by NRK effects abnormal volatility of stocks around earnings announcements. Abnormal volatility for each stock is the average abnormal volatility of day 0 and 1. Since volatility is expected to react to both positive and negative earnings surprises the absolute earnings surprise is used and divided into 5 quantiles. Control variables include indicators for each month, market capitalization deciles, market-to-book ratio deciles, share of institutional ownership, and Number of Analysts. All control variables are averaged for each month. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
           notes.append = FALSE,
@@ -970,20 +979,43 @@ stargazer(mod1, mod2, mod3, mod4, mod5, mod6,
           notes.align = "l",
           model.numbers = FALSE,
           report = "vc*s",
-          column.labels = c("(1)", "(2)", "(3)", "(4)", "(5)", "(6)"))
+          column.labels = c("(1)", "(2)"))
 
+# Limited controls
+stargazer(mod1, mod2, 
+          digits = 3,
+          header = FALSE,
+          type = "html",
+          se = t_vals,
+          p = p_vals,
+          dep.var.labels = c("AVOLA[0,1]"),
+          omit.stat = c("rsq","f","ser"),
+          omit = c("month", "logMktCap", "BtoM", "mean_IO_share", "mean_analyst", "Constant", "ES_quantile2"),
+          add.lines = list(c("Company Controls", "", "X"), c("Abs ES Indicators", "", "X"), c("Month Indicators", "", "X")),
+          table.layout = "n-=ldc-tas-",
+          covariate.labels = c("CNEWS"),
+          title = "Table 4.3: <br> Linear Regression Models of how Corona-News effect Abnormal Volume",
+          notes = "Table 4.3 shows the results of the multivariate regression on how the amount of Corona articles published by NRK effects abnormal trading volume of stocks publishing an earnings announcement on the same day. In regression (3) and (4) only the observations from the top two Cov-quantiles are used. Regression (2) and (4) adjust for control the variables Month, Market Capitalization Deciles, Market-to-Book ratio Deciles, IO share and Number of Analysts. All control variables are averaged for each month. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
+          notes.append = FALSE,
+          notes.label = "",
+          notes.align = "l",
+          model.numbers = FALSE,
+          star.cutoffs = c(0.1, 0.05, 0.01),
+          report = "vc*s",
+          column.labels = c("(1)", "(2)"))
 
 
 # Table 5: CAR _________________________________________________________________________________________
 stock_data$news2 <- stock_data$news/1000
-stock_data$CAR1_2 <- stock_data$CAR1*100
+stock_data$CAR1_2 <- stock_data$CAR1*10000
 stock_data$ES_quantile <- as.numeric(stock_data$ES_quantile)
 
 
+
 mod1 <- lm(CAR1_2 ~ news2*ES_quantile, data = stock_data)
-mod2 <- lm(CAR1_2 ~ news2*ES_quantile + ES_quantile*(month +logMktCap + BtoM + mean_IO_share + mean_analyst + share_turnover30), data = stock_data)
+mod2 <- lm(CAR1_2 ~ news2*ES_quantile + ES_quantile*(logMktCap + BtoM + mean_IO_share + mean_analyst + share_turnover30 + month), data = stock_data)
 #mod3 <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% lm(CAR1_2 ~ news2*I(ES_quantile), data = .)
-mod4 <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% lm(CAR1_2 ~ news2*I(ES_quantile) + I(ES_quantile)*(month + logMktCap + BtoM + mean_IO_share + mean_analyst + share_turnover30), data = .)
+mod4 <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% lm(CAR1_2 ~ news2*I(ES_quantile) + I(ES_quantile)*(logMktCap + BtoM + mean_IO_share + mean_analyst + share_turnover30 + month), data = .)
 
 
 t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
@@ -1006,11 +1038,11 @@ stargazer(mod1, mod2, mod4,
           se = t_vals,
           p = p_vals,
           dep.var.labels = c("CAR[0,1]"),
-          omit.stat = c("adj.rsq","f","ser"),
-          omit = c("month", "logMktCap", "BtoM", "mean_IO_share", "mean_analyst", "share_turnover30", "Constant"),
-          add.lines = list(c("Controls Interacted","", "X", "X")),
+          omit.stat = c("rsq","f","ser"),
+          omit = c("Constant"),
+          add.lines = list(c("Company Controls", "", "X", "X"), c("Month Indicators", "", "X", "X")),
           table.layout = "n-=ldc-tas-",
-          #covariate.labels = c("Corona News", "ES","ES * Corona News","TOP ES", "TOP ES * Corona News"),
+          covariate.labels = c("Corona News", "ES","ES * Corona News","TOP ES", "TOP ES * Corona News"),
           title = "Table 5: <br> Linear Regression Models of how Corona-News effect short-term abnormal returns",
           notes = "Table 5 shows the results of the multivariate regression on how the amount of clicks on Corona articles published by NRK affects abnormal returns of stocks around earnings announcements. Abnormal returns are the returns for each company adjusted for the market return for the industry they are within. Earnings surprises are divided into 5 quantiles where the first quintile is the most negative surprise and the fifth quintile the most positive. Control variables include indicators for each month, market capitalization deciles, market-to-book ratio deciles, share of institutional ownership,  Number of Analysts, and share turnover the last 30 days. All control variables are averaged for each month and interacted with the earning surprise quantiles.. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
           notes.append = FALSE,
@@ -1018,51 +1050,32 @@ stargazer(mod1, mod2, mod4,
           notes.align = "l",
           model.numbers = FALSE,
           report = "vc*s",
+          #order = c(4,5,1,3,2),
           column.labels = c("(1)", "(2)", "(3)"))
 
-# Table 6: CAR40______________________________________________________________________________________
-# CAR40 regressions 
 
-stock_data$news2 <- stock_data$news/1000
-stock_data$CAR40_2 <- stock_data$CAR40*100
-
-mod1 <- lm(CAR40_2 ~ news2*ES_quantile, data = stock_data)
-mod2 <- lm(CAR40_2 ~ news2*ES_quantile + month + ES_quantile*(logMktCap + logBtoM + mean_IO_share + mean_analyst + share_turnover30), data = stock_data)
-mod3 <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% lm(CAR40_2 ~ news2*I(ES_quantile), data = .)
-mod4 <- stock_data %>% filter(ES_quantile == 1 | ES_quantile == 5) %>% lm(CAR40_2 ~ news2*I(ES_quantile) + month + I(ES_quantile)*(logBtoM + mean_IO_share + mean_analyst + share_turnover30), data = .)
-
-t_vals <- list(coef(mod1)/sqrt(diag(vcovHC(mod1, type = "HC1"))),
-               coef(mod2)/sqrt(diag(vcovHC(mod2, type = "HC1"))),
-               coef(mod3)/sqrt(diag(vcovHC(mod3, type = "HC1"))),
-               coef(mod4)/sqrt(diag(vcovHC(mod4, type = "HC1"))))
-
-p_vals <- list(coeftest(mod1, df = Inf, vcov = vcovHC(mod1, type = "HC1"))[,4], 
-               coeftest(mod2, df = Inf, vcov = vcovHC(mod2, type = "HC1"))[,4],
-               coeftest(mod3, df = Inf, vcov = vcovHC(mod3, type = "HC1"))[,4],
-               coeftest(mod4, df = Inf, vcov = vcovHC(mod4, type = "HC1"))[,4])
-
-# By using CAR40 * 100 we get basis points
-
-stargazer(mod1, mod2, mod3, mod4,
+stargazer(mod1, mod2, mod4,
           digits = 3,
           header = FALSE,
           type = "html",
           se = t_vals,
           p = p_vals,
-          dep.var.labels = c("CAR[3,40]"),
-          omit.stat = c("adj.rsq","f","ser"),
-          omit = c("month", "logMktCap", "logBtoM", "mean_IO_share", "mean_analyst", "share_turnover30", "Constant"),
-          add.lines = list(c("Controls","", "X", "", "X")),
+          dep.var.labels = c("CAR[0,1]"),
+          omit.stat = c("rsq","f","ser"),
+          omit = c("month", "logMktCap", "BtoM", "mean_IO_share", "mean_analyst", "share_turnover30", "Constant"),
           table.layout = "n-=ldc-tas-",
           covariate.labels = c("Corona News", "ES","ES * Corona News","TOP ES", "TOP ES * Corona News"),
-          title = "Table 6: <br> Linear Regression Models of how Corona-News effect long-term abnormal returns",
-          notes = "Table 6 shows the results of the multivariate regression on how the amount of clicks on Corona articles published by NRK affects abnormal returns of stocks around earnings announcements. Abnormal returns are the returns for each company adjusted for the market return for the industry they are within. Cumulative abnormal returns are calculated from 2 days after announcement to 40 days after announcement. Earnings surprises are divided into 5 quantiles where the first quintile is the most negative surprise and the fifth quintile the most positive. Control variables include indicators for each month, market capitalization deciles, market-to-book ratio deciles, share of institutional ownership,  number of analysts, and share turnover the last 30 days. All control variables are averaged for each month and interacted with the earning surprise quantiles. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
+          title = "Table 5: <br> Linear Regression Models of how Corona-News effect short-term abnormal returns",
+          notes = "Table 5 shows the results of the multivariate regression on how the amount of clicks on Corona articles published by NRK affects abnormal returns of stocks around earnings announcements. Abnormal returns are the returns for each company adjusted for the market return for the industry they are within. Earnings surprises are divided into 5 quantiles where the first quintile is the most negative surprise and the fifth quintile the most positive. Control variables include indicators for each month, market capitalization deciles, market-to-book ratio deciles, share of institutional ownership,  Number of Analysts, and share turnover the last 30 days. All control variables are averaged for each month and interacted with the earning surprise quantiles.. Standard errors are adjusted for heteroskedasticity and t-values are reported in the parentheses. *, **, and *** represent significance at the 10%, 5% and 1% level, respectively.",
           notes.append = FALSE,
           notes.label = "",
           notes.align = "l",
           model.numbers = FALSE,
           report = "vc*s",
-          column.labels = c("(1)", "(2)", "(3)", "(4)"))
+          #order = c(4,5,1,3,2),
+          column.labels = c("(1)", "(2)", "(3)"))
+
+
 
 
 # Plots
@@ -1078,14 +1091,14 @@ stock_data %>%
   summarise(mean = mean(CAR1, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
   na.omit(ES) %>% 
   
-  ggplot(., aes(x = as.factor(ES_names), y = mean*100, group = names, linetype = names, colour = names, shape = names)) +
+  ggplot(., aes(x = as.factor(ES_names), y = mean*10000, group = names, linetype = names, colour = names, shape = names)) +
   geom_line() + 
   geom_point() +
-  scale_color_manual(name = "News", values = c("#4EBCD5", "#1C237E")) +
-  scale_linetype_manual(name = "News", values = c("solid", "longdash")) +
-  scale_shape_manual(name = "News", values = c(15, 17)) +
+  scale_color_manual(name = "News Readership", values = c("#4EBCD5", "#1C237E")) +
+  scale_linetype_manual(name = "News Readership", values = c("solid", "longdash")) +
+  scale_shape_manual(name = "News Readership", values = c(15, 17)) +
   labs(title = "Average CAR[0,1] for Each Earnings Surprise Quintiles",
-       x = "Average Earnings Surprise in each Quintiles", y = "CAR[0,1] (%)") +
+       x = "Average Earnings Surprise in each Quintiles", y = "CAR[0,1] (bps)") +
   theme_bw() +
   theme(text = element_text(family = "serif"),
         panel.grid.minor.y = element_blank(),
@@ -1094,26 +1107,3 @@ stock_data %>%
 
 
 
-
-# Figure 5b: CAR[2,40]
-stock_data$news_q <- stock_data$news_month
-stock_data %>% 
-  group_by(ES_quantile) %>% 
-  mutate(ES_names = round(mean(ES), 3)) %>% ungroup() %>% 
-  select(news_q, ES_quantile, CAR40, ES_names, ES) %>%
-  filter(news_q == "N1" | news_q == "N5") %>%
-  group_by(news_q, ES_quantile) %>%
-  summarise(mean = mean(CAR40, na.rm = T), ES_names = ES_names, ES = ES) %>% ungroup() %>%
-  na.omit(ES) %>% 
-  
-  ggplot(., aes(x = as.factor(ES_names), y = mean*100, group = news_q, linetype = news_q, colour = news_q, shape = news_q)) +
-  geom_line() + 
-  geom_point() +
-  scale_color_manual(name = "News Q", values = c("#4EBCD5", "#1C237E")) +
-  scale_linetype_manual(name = "News Q", values = c("solid", "longdash")) +
-  scale_shape_manual(name = "News Q", values = c(15, 17)) +
-  labs(title = "Figure 6: Average CAR[2,40] for Each Earnings Surprise Quantile",
-       x = "Average Earnings Surprise in each Quantile", y = "CAR[2,40] in %") +
-  theme_bw() +
-  theme(text = element_text(family = "serif"),
-        panel.grid.minor.y = element_blank())
